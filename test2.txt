@@ -1,0 +1,9 @@
+main
+var a;
+{
+	let a <- ( ( ( 2 + 1 ) * 2 ) / 2 ) - 1;
+	call outputnum(a);
+	call outputnewline();
+	let a <- 5*3+7;
+	call outputnum(a);
+}.

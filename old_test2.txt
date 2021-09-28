@@ -1,0 +1,8 @@
+// this is a comment
+main
+{
+  var number;
+  number<- 44;
+}
+.
+

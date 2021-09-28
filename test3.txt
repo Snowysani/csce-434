@@ -1,0 +1,15 @@
+main
+var x,y,z;
+{
+	let x <- call inputnum();
+	let y <- call inputnum();
+	let z <- call inputnum();
+	call outputnum(x);
+	call outputnewline();
+	call outputnum(y);
+	call outputnewline();
+	call outputnum(z);
+	call outputnewline();
+	call outputnum(x+y/z);
+	call outputnewline()
+}.
