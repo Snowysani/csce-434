@@ -1,15 +1,12 @@
 main
-var x,y,z;
+// Simple parsing test, then branch will not be executed
+var x, y;
 {
-	let x <- call inputnum();
-	let y <- call inputnum();
-	let z <- call inputnum();
-	call outputnum(x);
-	call outputnewline();
-	call outputnum(y);
-	call outputnewline();
-	call outputnum(z);
-	call outputnewline();
-	call outputnum(x+y/z);
-	call outputnewline()
+    let x <- 51; 
+    let y <- 2 * x;
+    if x < y then
+        call outputnum(y);
+        call outputnewline();
+    fi;
+    call outputnum(y);
 }.

@@ -1,5 +1,4 @@
 package edu.tamu.csce434;
-
 import java.util.Objects;
 import java.util.Vector;
 import java.util.Map.Entry;
@@ -70,8 +69,8 @@ public class Parser
 	// Implement this function to start parsing your input file
 	public void computation() 
 	{
-		inputNumScanner.Next();
-		inputNumber = inputNumScanner.val;
+		//inputNumScanner.Next();
+		//inputNumber = inputNumScanner.val;
 
 		token = scanner.sym;
 
@@ -92,11 +91,6 @@ public class Parser
 				// then its a var. 
 				varDec();
 			}
-			else
-			{
-				token = 0;
-				error();
-			}
 		}
 
 		// at this point we should have a semicolon
@@ -104,11 +98,6 @@ public class Parser
 		{
 			scanner.Next();
 			token = scanner.sym;
-		}
-		else
-		{
-			error();
-			scanner.Next();
 		}
 
 		// now we should have an open {
@@ -166,6 +155,7 @@ public class Parser
 			if (scanner.sym == scanner.expressionMap.get("if"))
 			{
 				ifStatement();
+				scanner.Next();
 				continue;
 			}
 			scanner.Next();
@@ -187,18 +177,27 @@ public class Parser
 		{
 			scanner.Next();
 			if (valueMap.containsKey(myIdent))
+			{
 				valueMap.replace(myIdent, exp());
-			else
+			}
+			else if (!valueMap.containsKey(myIdent) && varMap.containsKey(myIdent))
+			{
 				valueMap.put(myIdent, exp());
+			}
+			else // its not in the var map
+			{
+				error();
+			}
 		}
 	}
 
 	public int ifStatement()
 	{
 		int ret = 0;
+		scanner.Next();
 		if (relation())
 		{
-			scanner.Next();
+			//scanner.Next();
 			if (scanner.sym == scanner.expressionMap.get("then"))
 			{
 				statSequence();
@@ -223,11 +222,11 @@ public class Parser
 	{
 		boolean ret;
 		int exp1 = exp();
-		scanner.Next();
-		int op = scanner.val;
+		//scanner.Next();
+		int op = scanner.sym;
 		scanner.Next();
 		int exp2 = exp();
-		scanner.Next();
+		//scanner.Next();
 		if (op == scanner.expressionMap.get("=="))
 		{
 			ret = (exp1 == exp2);
@@ -311,7 +310,7 @@ public class Parser
 		}
 		else if (scanner.sym == scanner.expressionMap.get("call"))
 		{
-			scanner.Next();
+			//scanner.Next();
 			ret = funcCall();
 		}
 		else
@@ -347,18 +346,19 @@ public class Parser
 
 	int inputNum()
 	{
+		int val = inputNumScanner.val;
 		inputNumScanner.Next();
-		return inputNumScanner.val;
+		return val;
 	}
 
 	void outputNum(int a)
 	{
-		System.out.println(a);
+		System.out.print(a);
 	}
 
 	void outputnewline()
 	{
-		System.out.println("\n");
+		System.out.print("\n");
 	}
 
 	public static void main(String[] args) 
