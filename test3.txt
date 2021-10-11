@@ -1,12 +1,40 @@
 main
-// Simple parsing test, then branch will not be executed
-var x, y;
-{
-    let x <- 51; 
-    let y <- 2 * x;
-    if x < y then
-        call outputnum(y);
-        call outputnewline();
-    fi;
-    call outputnum(y);
+var x,y,z,a;
+{	
+	let x <- 2;
+	let y <- call inputnum(); // 4
+	let z <- call inputnum(); // 1
+	let a <- 1;
+	if x != (y-2) then // 2 != 2
+	    if y+x >= z then
+   		    if x < y then
+		        let z <- 1;
+		    fi;
+			call outputnum(y);
+			call outputnewline();
+		else
+			call outputnum(z);
+			call outputnewline();
+			let z <- call inputnum();
+			let a <- 2;
+		fi;
+	else // output 2 
+		call outputnum(x);
+		call outputnewline();
+	fi;
+
+	if a != 1 then
+	     	call outputnum(a);
+			call outputnewline();
+	fi;
+	let a <- x * y *z; // 2 * 4 * 1 = 8
+
+	call outputnum(a); // output 8 
+	call outputnewline();
+	call outputnum(x); // output 2 
+	call outputnewline();
+	call outputnum(y); // output 4
+	call outputnewline();
+	call outputnum(z); // output 1
+	call outputnewline();
 }.

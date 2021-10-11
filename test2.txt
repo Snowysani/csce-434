@@ -1,9 +1,11 @@
+// bad program, error expected
 main
-var a;
+var ch;
 {
-	let a <- ( ( ( 2 + 1 ) * 2 ) / 2 ) - 1;
-	call outputnum(a);
-	call outputnewline();
-	let a <- 5*3+7;
-	call outputnum(a);
+	//comment
+	;;
+	;
+	;
+	let p <- 2;
+	call outputnum(p);
 }.

@@ -208,7 +208,7 @@ public class Scanner {
                             this.sym = 24;
                             contentsPointer++;
                         }
-                        if (this.sym == 20 && contents.charAt(contentsPointer + 1) == '>')
+                        if (this.sym == 25 && contents.charAt(contentsPointer + 1) == '=')
                         {
                             // then it's an edge case: geq
                             this.sym = 23;

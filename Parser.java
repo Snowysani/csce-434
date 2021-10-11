@@ -1,10 +1,4 @@
 package edu.tamu.csce434;
-import java.util.Objects;
-import java.util.Vector;
-import java.util.Map.Entry;
-
-
-
 public class Parser 
 {
 	private Scanner scanner;
@@ -136,7 +130,7 @@ public class Parser
 
 	public void statSequence()
 	{
-		while (scanner.sym != scanner.expressionMap.get("."))
+		while (scanner.sym != scanner.expressionMap.get(".") && scanner.sym != 255)
 		{
 			if (scanner.sym == scanner.expressionMap.get("let")) // if it's an assignment
 			{
@@ -157,6 +151,22 @@ public class Parser
 				ifStatement();
 				scanner.Next();
 				continue;
+			}
+
+			if (scanner.sym == scanner.expressionMap.get("fi") || scanner.sym == scanner.expressionMap.get("else"))
+			{
+				return;
+			}
+
+			if (scanner.sym == scanner.expressionMap.get(";"))
+			{
+				scanner.Next();
+				continue;
+			}
+
+			if (scanner.sym == 255)
+			{
+				break;
 			}
 			scanner.Next();
 		}
@@ -195,25 +205,66 @@ public class Parser
 	{
 		int ret = 0;
 		scanner.Next();
-		if (relation())
+		int fiCount = 0;
+		if (relation()) // If we pass the conditional check
 		{
 			//scanner.Next();
 			if (scanner.sym == scanner.expressionMap.get("then"))
 			{
+				scanner.Next();
 				statSequence();
+			}
+			if (scanner.sym == scanner.expressionMap.get("else"))
+			{
+				while (scanner.sym != scanner.expressionMap.get("fi"))
+				{
+					scanner.Next();
+				}
+				// go until we hit the next semicolon after the fi
+				scanner.Next();
+			}
+			if (scanner.sym == scanner.expressionMap.get("fi"))
+			{
+				ret = 0;
+				//scanner.Next();
 			}
 		}
 		else
-		{
-			scanner.Next();
+		{	// We go here if we don't pass the conditional check.
+			// That means we have to either execute on the next "else", or if we see an invalid "if", pass it up by going to its "fi"
 			while (scanner.sym != scanner.expressionMap.get("fi"))
 			{
 				scanner.Next();
+
 				if (scanner.sym == scanner.expressionMap.get("else"))
 				{
+					// now we are at the else
+					scanner.Next();
 					statSequence();
 				}
+				if (scanner.sym == scanner.expressionMap.get("if"))
+				{
+					fiCount++;
+					// go until it's a fi.
+					while (fiCount > 0)
+					{
+						scanner.Next();
+						if(scanner.sym == scanner.expressionMap.get("fi"))
+						{
+							fiCount--;
+						}
+						if(scanner.sym == scanner.expressionMap.get("if"))
+						{
+							fiCount++;
+						}
+					}
+					scanner.Next();
+				}
 			}
+
+
+			if (scanner.sym == 255)
+				error();
 		}
 		return ret;
 	}
@@ -222,11 +273,9 @@ public class Parser
 	{
 		boolean ret;
 		int exp1 = exp();
-		//scanner.Next();
 		int op = scanner.sym;
 		scanner.Next();
 		int exp2 = exp();
-		//scanner.Next();
 		if (op == scanner.expressionMap.get("=="))
 		{
 			ret = (exp1 == exp2);
@@ -262,13 +311,17 @@ public class Parser
 	int exp() {
 		int ret; 
 		int t = term();
-		while (scanner.sym == scanner.expressionMap.get("+")) {
+		while (scanner.sym == scanner.expressionMap.get("+") || scanner.sym == scanner.expressionMap.get("-")) {
+			boolean tempMinus = scanner.sym == scanner.expressionMap.get("-");
 			scanner.Next();
-			t += term();
-		}
-		while (scanner.sym == scanner.expressionMap.get("-")) {
-			scanner.Next();
-			t += term();
+			if (!tempMinus) // if we're substracting or adding.
+			{
+				t += term();
+			}
+			if (tempMinus)
+			{
+				t -= term();
+			}
 		}
 		ret = t;
 		
@@ -277,6 +330,7 @@ public class Parser
 
 	int term() {
 		int ret;
+		
 		int t = factor();
 		while (scanner.sym == scanner.expressionMap.get("*")) {
 			scanner.Next();
@@ -301,12 +355,18 @@ public class Parser
 		{	// var identity
 			if ( valueMap.get(scanner.Id2String(scanner.id)) != null)
 				ret = valueMap.get(scanner.Id2String(scanner.id));
+			else
+				error();
 			scanner.Next();
 		}
 		else if (scanner.sym == scanner.expressionMap.get("("))
 		{	// expression
 			scanner.Next();
 			ret = exp();
+			if (scanner.sym == scanner.expressionMap.get(")"))
+			{
+				scanner.Next();
+			}
 		}
 		else if (scanner.sym == scanner.expressionMap.get("call"))
 		{
@@ -315,7 +375,7 @@ public class Parser
 		}
 		else
 		{
-			ret = 0; error();
+			ret = 0; //error();
 		}
 		return ret;
 	}
@@ -334,6 +394,8 @@ public class Parser
 		if (myIdent.equals("outputnum"))
 		{
 			scanner.Next();
+			if (scanner.sym == 61 && !varMap.containsKey(scanner.Id2String(scanner.id)))
+				return 1;
 			outputNum(exp());
 		}
 		if (myIdent.equals("outputnewline"))
