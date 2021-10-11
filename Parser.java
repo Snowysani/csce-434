@@ -142,7 +142,7 @@ public class Parser
 			if (scanner.sym == scanner.expressionMap.get("call")) // if it's a function call
 			{
 				funcCall();
-				scanner.Next();
+				//scanner.Next();
 				continue;
 			}
 	
@@ -168,6 +168,7 @@ public class Parser
 			{
 				break;
 			}
+
 			scanner.Next();
 		}
 
@@ -204,7 +205,8 @@ public class Parser
 	public int ifStatement()
 	{
 		int ret = 0;
-		scanner.Next();
+		if (scanner.sym != scanner.expressionMap.get("else"))
+			scanner.Next();
 		int fiCount = 0;
 		if (relation()) // If we pass the conditional check
 		{
