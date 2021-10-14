@@ -1,9 +1,5 @@
-
 main 
 var x, y;
 {
-    let x <- 51; 
-    let y <- 2 * x;
-    call outputnum(y);
+    51; 
 }.
-//Simple parsing test

@@ -409,6 +409,7 @@ public class Scanner {
         symMap.put( 90, "else");
         symMap.put(100, "call");
         symMap.put(101, "if");
+        symMap.put(102, "while");
         symMap.put(103, "return");
         symMap.put(110, "var");
         symMap.put(111, "arr");
@@ -450,6 +451,8 @@ public class Scanner {
         exMap.put("else", 90);
         exMap.put("call", 100);
         exMap.put("if", 101);
+        exMap.put("while", 102);
+        exMap.put("return", 103);
         exMap.put("var", 110);
         exMap.put("array", 111);
         exMap.put("function", 112);

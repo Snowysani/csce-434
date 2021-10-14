@@ -23,7 +23,7 @@ public class DLX {
 	public static void load(int program[]) {
 		int i;
 		for (i = 0; i < program.length; i++) {
-			M[i] = program[i];
+			M[i] = program[i]; // every line of program has a line in memory.
 		}
 		M[i] = -1; // set first opcode of first instruction after program
 		           // to ERR in order to detect 'fall off the edge' errors
@@ -34,7 +34,7 @@ public class DLX {
 		for (int i = 0; i < 32; i++) { R[i] = 0; };
 		PC = 0; R[30] = MemSize - 1;
 
-                BufferedReader lineReader = new BufferedReader(new InputStreamReader(System.in));
+        BufferedReader lineReader = new BufferedReader(new InputStreamReader(System.in));
 
 		try {
 
