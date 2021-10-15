@@ -1,11 +1,14 @@
 package edu.tamu.csce434;
 
+import java.util.List;
+import java.util.ArrayList;
 
 public class Compiler 
 {
 	private edu.tamu.csce434.Scanner scanner;
 	
 	int buf[] = new int[DLX.MemSize/4 - 1];		
+	List<Integer> bufList = new ArrayList<Integer>(); 
 	int R[] = new int[32]; // register array
 	void freeRegister(int i)
 	{
@@ -32,7 +35,6 @@ public class Compiler
 		bufferPointer = 0; mostRecentlyUsedReg = 1;
 		varMap = new java.util.HashMap< String, Result >();
 	}
-	
 	
 	
 	// Implement this function to start compiling your input file
@@ -76,6 +78,9 @@ public class Compiler
 		}
 		statSequence();
 
+		// stream arraylist to the buffer.
+		buf = bufList.stream().mapToInt(i -> i).toArray();
+
 		scanner.closefile();
 		
 		return buf;
@@ -95,9 +100,15 @@ public class Compiler
 		return -1; // no free registers
 	}
 
+	private void pushToBuffer(int idx, int inst)
+	{
+		bufList.add(idx, inst);
+		//buf[bufferPointer++] = inst;
+	}
+
 	private void pushToBuffer(int inst)
 	{
-		buf[bufferPointer++] = inst;
+		bufList.add(inst);
 	}
 
 	private void error()
@@ -128,8 +139,9 @@ public class Compiler
 		}
 	}
 
-	public void statSequence()
+	public int statSequence()
 	{
+		int i1 = bufList.size();
 		while (scanner.sym != scanner.expressionMap.get(".") && scanner.sym != 255)
 		{
 			if (scanner.sym == scanner.expressionMap.get("let")) // if it's an assignment
@@ -153,9 +165,19 @@ public class Compiler
 				continue;
 			}
 
-			if (scanner.sym == scanner.expressionMap.get("fi") || scanner.sym == scanner.expressionMap.get("else"))
+			if (scanner.sym == scanner.expressionMap.get("while"))
 			{
-				return;
+				
+				whileLoop();
+				//scanner.Next();
+				continue;
+			}
+
+			if (scanner.sym == scanner.expressionMap.get("fi") 
+				|| scanner.sym == scanner.expressionMap.get("else")
+				|| scanner.sym == scanner.expressionMap.get("od"))
+			{
+				return bufList.size() - i1;
 			}
 
 			if (scanner.sym == scanner.expressionMap.get(";"))
@@ -172,7 +194,8 @@ public class Compiler
 			scanner.Next();
 		}
 		// now we are at the end of file.
-		buf[bufferPointer++] = DLX.assemble(49, 0);
+		pushToBuffer(DLX.assemble(RET, 0));
+		return bufList.size() - i1;
 	}
 
 	public void assignment()
@@ -185,6 +208,13 @@ public class Compiler
 		String myIdent = scanner.Id2String(scanner.id);
 		scanner.Next();
 		
+		if (!varMap.containsKey(myIdent))
+		{
+			String name = scanner.Id2String(scanner.id);
+			Result r = new Result(name, -1, getNextMemLocation());
+			varMap.put(name, r);
+		}
+
 		if (scanner.sym == scanner.expressionMap.get("<-"))
 		{
 			scanner.Next();
@@ -205,115 +235,106 @@ public class Compiler
 
 	public int ifStatement()
 	{
-		int ret = 0;
-		if (scanner.sym != scanner.expressionMap.get("else"))
-			scanner.Next();
-		int fiCount = 0;
-		int rel = relation();
-		if (rel == 0) // If we pass the conditional check
+		scanner.Next();
+		retRelation rel = relation();
+
+        if (rel == null) error();
+		if (scanner.sym != scanner.expressionMap.get("then")) error();
+
+		scanner.Next();
+
+        rel.offset = statSequence();
+        int numElseInstructions = 1;
+        
+        if (scanner.sym == scanner.expressionMap.get("else")) {
+            scanner.Next();
+            int finishIndex = bufList.size();
+            int numElseStuff = statSequence();
+			bufList.add(finishIndex, DLX.assemble(40, 0, numElseStuff + 1));
+            numElseInstructions += numElseStuff;
+        }
+
+        bufList.add(rel.idx + 1, DLX.assemble(rel.opcode, rel.regno, rel.offset + numElseInstructions + 1)); 
+
+        while(scanner.sym != scanner.expressionMap.get("fi"))
 		{
-			//scanner.Next();
-			if (scanner.sym == scanner.expressionMap.get("then"))
-			{
-				scanner.Next();
-				statSequence();
-			}
-			if (scanner.sym == scanner.expressionMap.get("else"))
-			{
-				while (scanner.sym != scanner.expressionMap.get("fi"))
-				{
-					scanner.Next();
-				}
-				// go until we hit the next semicolon after the fi
-				scanner.Next();
-			}
-			if (scanner.sym == scanner.expressionMap.get("fi"))
-			{
-				ret = 0;
-				//scanner.Next();
-			}
+			scanner.Next();
 		}
-		else
-		{	// We go here if we don't pass the conditional check.
-			// That means we have to either execute on the next "else", or if we see an invalid "if", pass it up by going to its "fi"
-			while (scanner.sym != scanner.expressionMap.get("fi"))
-			{
-				scanner.Next();
 
-				if (scanner.sym == scanner.expressionMap.get("else"))
-				{
-					// now we are at the else
-					scanner.Next();
-					statSequence();
-				}
-				if (scanner.sym == scanner.expressionMap.get("if"))
-				{
-					fiCount++;
-					// go until it's a fi.
-					while (fiCount > 0)
-					{
-						scanner.Next();
-						if(scanner.sym == scanner.expressionMap.get("fi"))
-						{
-							fiCount--;
-						}
-						if(scanner.sym == scanner.expressionMap.get("if"))
-						{
-							fiCount++;
-						}
-					}
-					scanner.Next();
-				}
-			}
-
-
-			if (scanner.sym == 255)
-				error();
-		}
-		freeRegister(rel);
-		return ret;
+       // freeRegister(rel.regno);
+        return 0;
 	}
 
-	public int relation()
+	public int whileLoop()
 	{
-		int ret;
+		scanner.Next();
+		retRelation rel = relation();
+
+		int offset = 0;
+//		scanner.Next();
+		if (scanner.sym == scanner.expressionMap.get("do"))
+		{
+			scanner.Next();
+			offset = statSequence();
+		}              
+		if (scanner.sym != scanner.expressionMap.get("od"))
+		{
+			error();
+		}        
+		pushToBuffer(rel.idx, DLX.assemble(rel.opcode, rel.regno, offset + 2));   
+
+		pushToBuffer(DLX.assemble(BEQ, 0, (offset + 3) * -1 )); 
+
+		scanner.Next();
+
+		//freeRegister(rel.regno);
+		return 0;
+	}
+
+	public retRelation relation()
+	{
 		int exp1 = exp();
 		int op = scanner.sym;
+		int myOp = 0;
 		scanner.Next();
 		int exp2 = exp();
+
 		int freeReg = getNextReg();
+
+		pushToBuffer(DLX.assemble(SUB, freeReg, exp1, exp2));
+		int relIndex = bufList.size();
+
 		if (op == scanner.expressionMap.get("=="))
 		{
-			pushToBuffer(DLX.assemble(BEQ, freeReg, 0));//ret = (exp1 == exp2);
+			myOp = BNE;
 		}
 		else if (op == scanner.expressionMap.get("!="))
 		{
-			pushToBuffer(DLX.assemble(BNE, freeReg, 0));//ret = (exp1 != exp2);
+			myOp = BEQ;
 		}
 		else if (op == scanner.expressionMap.get("<"))
 		{
-			pushToBuffer(DLX.assemble(BLT, freeReg, 0));//ret = (exp1 < exp2);
+			myOp = BGE;
 		}
 		else if (op == scanner.expressionMap.get("<="))
 		{
-			pushToBuffer(DLX.assemble(BLE, freeReg, 0));//ret = (exp1 <= exp2);
+			myOp = BGT;
 		}
 		else if (op == scanner.expressionMap.get(">"))
 		{
-			pushToBuffer(DLX.assemble(BGT, freeReg, 0));//ret = (exp1 > exp2);
+			myOp = BLE;
 		}
 		else if (op == scanner.expressionMap.get(">="))
 		{
-			pushToBuffer(DLX.assemble(BGE, freeReg, 0));//ret = (exp1 >= exp2);
+			myOp = BLT;
 		}
 		else
 		{
-			ret = 0;
 			error();
 		}
 		freeRegister(exp1);
 		freeRegister(exp2);
-		return 0;
+		return new retRelation(myOp, freeReg, relIndex);
 	}
 
 	int exp() {
@@ -329,21 +350,23 @@ public class Compiler
 			{
 				int tempRegisterNumber = term();
 				pushToBuffer(DLX.assemble(ADD, nextReg, t, tempRegisterNumber));
-				freeRegister(tempRegisterNumber);
+				freeRegister(tempRegisterNumber);		
+				freeRegister(t);
+
 			}
 			if (isMinus)
 			{
 				int tempRegisterNumber = term();
 				pushToBuffer(DLX.assemble(SUB, nextReg, t, tempRegisterNumber));
 				freeRegister(tempRegisterNumber);
+				freeRegister(t);
 			}
 		}
 		if (hitFlag) {
-			freeRegister(t);
 			return nextReg;
 		}
 		else {
-			ret = t; freeRegister(nextReg);
+			ret = t; 
 			return ret;
 		}
 	}
@@ -392,13 +415,17 @@ public class Compiler
 			int nextReg = getNextReg();
 			pushToBuffer(DLX.assemble(ADDI, nextReg, 0, scanner.val));
 			ret = nextReg; // return the location of the register.
+			freeRegister(ret);
 			scanner.Next();
 		}
 		else if (scanner.sym == 61)
 		{	// var identity
 			if ( varMap.get(scanner.Id2String(scanner.id)) == null)  // if we do have that variable.
 			{
-				error();
+				// add it to the reg map
+				String name = scanner.Id2String(scanner.id);
+				Result r = new Result(name, -1, getNextMemLocation());
+				varMap.put(name, r);
 			}
 		
 			Result r = varMap.get(scanner.Id2String(scanner.id));
@@ -408,6 +435,7 @@ public class Compiler
 			pushToBuffer(DLX.assemble(LDW, r.regno, 30, r.address));
 
 			ret = r.regno;
+			freeRegister(ret);
 			scanner.Next();
 		}
 		else if (scanner.sym == scanner.expressionMap.get("("))
@@ -441,6 +469,7 @@ public class Compiler
 		{
 			int nextReg = getNextReg();
 			pushToBuffer(DLX.assemble(RDI, nextReg)); // read input value
+			freeRegister(nextReg);
 			return nextReg;
 		}
 		if (myIdent.equals("outputnum"))
@@ -451,6 +480,7 @@ public class Compiler
 			int myExpression = exp();
 			//outputNum(exp());
 			pushToBuffer(DLX.assemble(51, myExpression));
+			freeRegister(myExpression);
 		}
 		if (myIdent.equals("outputnewline"))
 		{
@@ -537,5 +567,26 @@ class Result {
 	Result() {
 		regno = 0; address = 0; name = "";
 	}
+}
+
+class retRelation {
+    int opcode;
+    int regno;
+    int idx;
+    int offset;
+    
+    retRelation() {
+        opcode = -1;
+        regno = -1;
+        idx = 0;
+        offset = 0;
+    }
+
+    retRelation(int op, int r, int i) {
+        opcode = op;
+        regno = r;
+        idx = i;
+        offset = 0;
+    }
 }
 

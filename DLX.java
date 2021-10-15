@@ -24,6 +24,8 @@ public class DLX {
 		int i;
 		for (i = 0; i < program.length; i++) {
 			M[i] = program[i]; // every line of program has a line in memory.
+			if (i < 200)
+				print(i, program[i]);
 		}
 		M[i] = -1; // set first opcode of first instruction after program
 		           // to ERR in order to detect 'fall off the edge' errors
@@ -56,6 +58,7 @@ public class DLX {
 				case SUB:
 				case SUBI:
 					R[a] = R[b] - c;
+					//System.out.println("SUB called. New value of register: " + R[a]);
 					break;
 				case CMP:
 				case CMPI:
@@ -149,6 +152,7 @@ public class DLX {
 							+ MemSize + ").");
 						bug(40); 
 					}
+					//System.out.println("BEQ Current PC: " + PC + ", NextPC: " + nextPC+ ", PC Value: " + R[a]);
 					break;
 				case BNE:
 					if (R[a] != 0) nextPC = PC + c;
@@ -173,6 +177,7 @@ public class DLX {
 							+ MemSize + ").");
 						bug(43); 
 					}
+					//System.out.println("BGE Current PC: " + PC + ", NextPC: " + nextPC+ ", PC Value: " + R[a]);
 					break;
 				case BLE:
 					if (R[a] <= 0) nextPC = PC + c;
@@ -230,13 +235,17 @@ public class DLX {
 					bug(1);
 			}
 			PC = nextPC;
+			//System.out.println(disassemble(M[PC]));
 		}
 
 		}
 		catch (java.lang.ArrayIndexOutOfBoundsException e ) {
 		  System.out.println( "failed at " + PC*4 + ",   "  + disassemble( M[PC] ) );
 		}
+		//System.out.println("start register print");
 
+		//for (int i = 0; i < 32; i++) { System.out.println(" " + i + ": " + R[i]); };
+		//System.out.println("end register print");
 	}
 
 	// Mnemonic-to-Opcode mapping
@@ -575,5 +584,8 @@ public class DLX {
 		System.exit(n);
 	}
 	
+	private static void print(int p, int i) {
+        System.out.print(p + ": " + disassemble(i));
+    }
 
 }
