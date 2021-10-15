@@ -209,7 +209,8 @@ public class Compiler
 		if (scanner.sym != scanner.expressionMap.get("else"))
 			scanner.Next();
 		int fiCount = 0;
-		if (relation()) // If we pass the conditional check
+		int rel = relation();
+		if (rel == 0) // If we pass the conditional check
 		{
 			//scanner.Next();
 			if (scanner.sym == scanner.expressionMap.get("then"))
@@ -269,46 +270,50 @@ public class Compiler
 			if (scanner.sym == 255)
 				error();
 		}
+		freeRegister(rel);
 		return ret;
 	}
 
-	public boolean relation()
+	public int relation()
 	{
-		boolean ret;
+		int ret;
 		int exp1 = exp();
 		int op = scanner.sym;
 		scanner.Next();
 		int exp2 = exp();
+		int freeReg = getNextReg();
 		if (op == scanner.expressionMap.get("=="))
 		{
-			ret = (exp1 == exp2);
+			pushToBuffer(DLX.assemble(BEQ, freeReg, 0));//ret = (exp1 == exp2);
 		}
 		else if (op == scanner.expressionMap.get("!="))
 		{
-			ret = (exp1 != exp2);
+			pushToBuffer(DLX.assemble(BNE, freeReg, 0));//ret = (exp1 != exp2);
 		}
 		else if (op == scanner.expressionMap.get("<"))
 		{
-			ret = (exp1 < exp2);
+			pushToBuffer(DLX.assemble(BLT, freeReg, 0));//ret = (exp1 < exp2);
 		}
 		else if (op == scanner.expressionMap.get("<="))
 		{
-			ret = (exp1 <= exp2);
+			pushToBuffer(DLX.assemble(BLE, freeReg, 0));//ret = (exp1 <= exp2);
 		}
 		else if (op == scanner.expressionMap.get(">"))
 		{
-			ret = (exp1 > exp2);
+			pushToBuffer(DLX.assemble(BGT, freeReg, 0));//ret = (exp1 > exp2);
 		}
 		else if (op == scanner.expressionMap.get(">="))
 		{
-			ret = (exp1 >= exp2);
+			pushToBuffer(DLX.assemble(BGE, freeReg, 0));//ret = (exp1 >= exp2);
 		}
 		else
 		{
-			ret = false;
+			ret = 0;
 			error();
 		}
-		return ret;
+		freeRegister(exp1);
+		freeRegister(exp2);
+		return 0;
 	}
 
 	int exp() {
