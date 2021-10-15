@@ -5,11 +5,11 @@ public class Compiler
 {
 	private edu.tamu.csce434.Scanner scanner;
 	
-	int buf[] = new int[3000];		
+	int buf[] = new int[DLX.MemSize/4 - 1];		
 	int R[] = new int[32]; // register array
 	void freeRegister(int i)
 	{
-		R[i] = -1;
+		R[i] = 0;
 	}
 	int mostRecentlyUsedReg;
 
@@ -26,7 +26,7 @@ public class Compiler
 		R[0] = 0;
 		for (int i = 1; i < 27; i++)
 		{
-			R[i] = -1;
+			R[i] = 0;
 		} // populate the registers
 		R[30] = DLX.MemSize - 1;
 		bufferPointer = 0; mostRecentlyUsedReg = 1;
@@ -85,9 +85,10 @@ public class Compiler
 	{
 		for (int i = 1; i < 27; i++)
 		{
-			if (R[i] == -1)
+			if (R[i] == 0)
 			{
 				mostRecentlyUsedReg = i;
+				R[i] = 1;
 				return i;
 			}
 		}
@@ -187,18 +188,13 @@ public class Compiler
 		if (scanner.sym == scanner.expressionMap.get("<-"))
 		{
 			scanner.Next();
-			if (valueMap.containsKey(myIdent))
+			if (varMap.containsKey(myIdent))
 			{
-				int exp = exp();
-				valueMap.replace(myIdent, exp);
-				
-				// Update the register value.
-			}
-			else if (!valueMap.containsKey(myIdent) && varMap.containsKey(myIdent))
-			{
-				int exp = exp();
-				valueMap.put(myIdent, exp);
-				
+				int expReg = exp();
+				Result r = varMap.get(myIdent);
+				// STW that register value in the variable's memory location.
+				pushToBuffer(DLX.assemble(STW, expReg, 30, r.address));
+				freeRegister(expReg);
 			}
 			else // its not in the var map
 			{
@@ -318,21 +314,33 @@ public class Compiler
 	int exp() {
 		int ret; 
 		int t = term();
+		int nextReg = getNextReg();
+		boolean hitFlag = false;
 		while (scanner.sym == scanner.expressionMap.get("+") || scanner.sym == scanner.expressionMap.get("-")) {
-			boolean tempMinus = scanner.sym == scanner.expressionMap.get("-");
+			hitFlag = true;
+			boolean isMinus = scanner.sym == scanner.expressionMap.get("-");
 			scanner.Next();
-			if (!tempMinus) // if we're substracting or adding.
+			if (!isMinus) // if we're substracting or adding.
 			{
-				t += term(); // add whatever is in the term register.
+				int tempRegisterNumber = term();
+				pushToBuffer(DLX.assemble(ADD, nextReg, t, tempRegisterNumber));
+				freeRegister(tempRegisterNumber);
 			}
-			if (tempMinus)
+			if (isMinus)
 			{
-				t -= term(); // minus whatever is in the term register.
+				int tempRegisterNumber = term();
+				pushToBuffer(DLX.assemble(SUB, nextReg, t, tempRegisterNumber));
+				freeRegister(tempRegisterNumber);
 			}
 		}
-		ret = t;
-		
-		return ret;
+		if (hitFlag) {
+			freeRegister(t);
+			return nextReg;
+		}
+		else {
+			ret = t; freeRegister(nextReg);
+			return ret;
+		}
 	}
 
 	int term() {
@@ -340,18 +348,34 @@ public class Compiler
 		
 		int t = factor();
 		int nextReg = getNextReg();
+		boolean hitFlag = false;
 
 		while (scanner.sym == scanner.expressionMap.get("*")) {
+			hitFlag = true;
 			scanner.Next();
 			//t *= factor(); // use MULT maybe?
-			pushToBuffer( DLX.assemble(MUL, nextReg, t, factor()) );
+			int factorReg = factor();
+			pushToBuffer( DLX.assemble(MUL, nextReg, t, factorReg) );
+			freeRegister(t);
+			freeRegister(factorReg);
 		}
 		while (scanner.sym == scanner.expressionMap.get("/")) {
+			hitFlag = true;
 			scanner.Next();
 			//t /= factor(); // maybe we can DIV here
-			pushToBuffer( DLX.assemble(DIV, nextReg, t, factor()) );
+			int factorReg = factor();
+			pushToBuffer( DLX.assemble(DIV, nextReg, t, factorReg) );
+			freeRegister(t);
+			freeRegister(factorReg);
 		}
-		ret = nextReg;
+		if (hitFlag)
+		{
+			ret = nextReg;
+		}
+		else
+		{
+			ret = t;
+		}
 		return ret;
 	}
 
@@ -376,7 +400,7 @@ public class Compiler
 			if (r.regno == -1) r.regno = getNextReg();
 			
 			// LDW the value in memory to the register.
-			pushToBuffer(DLX.assemble(LDW, r.regno, 0, r.address));
+			pushToBuffer(DLX.assemble(LDW, r.regno, 30, r.address));
 
 			ret = r.regno;
 			scanner.Next();
@@ -411,7 +435,7 @@ public class Compiler
 		if (myIdent.equals("inputnum"))
 		{
 			int nextReg = getNextReg();
-			pushToBuffer(DLX.assemble(RDD, nextReg)); // read input value
+			pushToBuffer(DLX.assemble(RDI, nextReg)); // read input value
 			return nextReg;
 		}
 		if (myIdent.equals("outputnum"))

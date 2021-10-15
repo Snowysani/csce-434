@@ -1,23 +1,17 @@
 main
-var a, b, c, d;
+var x,y,z;
 {
-	let a <- 22;
-	let b <- 22; 
-	let c <- 22;
-	let d <- call inputnum(); //call with 22
-	if a == b then
-		if b == c then
-			if c == d then
-				call outputnum(25)
-			else
-				call outputnum(26);
-			fi;
-		else
-			call outputnum(27)
-		fi;
-	else
-		let d <- call inputnum(); 
-		call outputnum(28)
-	fi;
+	let x <- call inputnum();
+	let y <- call inputnum();
+	let z <- call inputnum();
+	call outputnum(x);
 	call outputnewline();
+	call outputnum(y);
+	call outputnewline();
+	call outputnum(z);
+	call outputnewline();
+    if x > y then
+    	call outputnum(x+y/z);
+    	call outputnewline();
+    fi;
 }.
