@@ -153,14 +153,16 @@ public class Compiler
 	
 			if (scanner.sym == scanner.expressionMap.get("call")) // if it's a function call
 			{
-				funcCall();
+				int reg = funcCall();
+				freeRegister(reg);
 				//scanner.Next();
 				continue;
 			}
 	
 			if (scanner.sym == scanner.expressionMap.get("if"))
 			{
-				ifStatement();
+				int reg = ifStatement();
+				freeRegister(reg);
 				scanner.Next();
 				continue;
 			}
@@ -261,17 +263,17 @@ public class Compiler
 			scanner.Next();
 		}
 
-       // freeRegister(rel.regno);
-        return 0;
+        //freeRegister(r.reg);
+        return rel.regno;
 	}
 
 	public int whileLoop()
 	{
+		int ret = 0;
 		scanner.Next();
 		retRelation rel = relation();
 
 		int offset = 0;
-//		scanner.Next();
 		if (scanner.sym == scanner.expressionMap.get("do"))
 		{
 			scanner.Next();
@@ -286,13 +288,15 @@ public class Compiler
 		pushToBuffer(DLX.assemble(BEQ, 0, (offset + 3) * -1 )); 
 
 		scanner.Next();
+		ret = 0;
 
-		//freeRegister(rel.regno);
-		return 0;
+		freeRegister(rel.regno);
+		return ret;
 	}
 
 	public retRelation relation()
 	{
+		int ret;
 		int exp1 = exp();
 		int op = scanner.sym;
 		int myOp = 0;
@@ -330,6 +334,7 @@ public class Compiler
 		}
 		else
 		{
+			ret = 0;
 			error();
 		}
 		freeRegister(exp1);
@@ -366,6 +371,7 @@ public class Compiler
 			return nextReg;
 		}
 		else {
+			freeRegister(nextReg);
 			ret = t; 
 			return ret;
 		}
@@ -415,7 +421,7 @@ public class Compiler
 			int nextReg = getNextReg();
 			pushToBuffer(DLX.assemble(ADDI, nextReg, 0, scanner.val));
 			ret = nextReg; // return the location of the register.
-			freeRegister(ret);
+			//freeRegister(ret);
 			scanner.Next();
 		}
 		else if (scanner.sym == 61)
@@ -435,7 +441,7 @@ public class Compiler
 			pushToBuffer(DLX.assemble(LDW, r.regno, 30, r.address));
 
 			ret = r.regno;
-			freeRegister(ret);
+			//freeRegister(ret);
 			scanner.Next();
 		}
 		else if (scanner.sym == scanner.expressionMap.get("("))
@@ -469,7 +475,7 @@ public class Compiler
 		{
 			int nextReg = getNextReg();
 			pushToBuffer(DLX.assemble(RDI, nextReg)); // read input value
-			freeRegister(nextReg);
+			//freeRegister(nextReg);
 			return nextReg;
 		}
 		if (myIdent.equals("outputnum"))
@@ -480,7 +486,8 @@ public class Compiler
 			int myExpression = exp();
 			//outputNum(exp());
 			pushToBuffer(DLX.assemble(51, myExpression));
-			freeRegister(myExpression);
+			return myExpression;
+			//freeRegister(myExpression);
 		}
 		if (myIdent.equals("outputnewline"))
 		{
@@ -589,4 +596,3 @@ class retRelation {
         offset = 0;
     }
 }
-
