@@ -1,16 +1,38 @@
 main
-var x, y;
-{
-    let x <- 51; 
-    let y <- 10;
-    while x > 0 do
-        if x > y then
-            call outputnum(y);
-            call outputnewline();
-        fi;
-        let x <- x - 5;
-        call outputnum(x);
-        call outputnewline();
+var x,y,z,a;
+{	
+	let x <- 10;
+	let y <- call inputnum();
+	let z <- call inputnum();
+	let a <- 1;
+    while a < 50 do
+        let x <- x + 1;
+        let a <- a * 2;
     od;
-    call outputnum(y);
+	if x == 8 then
+        let a <- 1;
+        while x > 0 do
+            let a <- a * x;
+            let x <- x - 1;
+        od;
+	else
+        let a <- 2;
+        if x > 8 then
+            while x > 8 do
+                let a <- a + x;
+                let x <- x/2;
+            od;
+        else 
+            let a <- 1000;
+        fi;
+	fi;
+
+	call outputnum(a);
+	call outputnewline();
+	call outputnum(x);
+	call outputnewline();
+	call outputnum(y);
+	call outputnewline();
+	call outputnum(z);
+	call outputnewline();
 }.

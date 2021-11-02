@@ -103,7 +103,6 @@ public class Compiler
 	private void pushToBuffer(int idx, int inst)
 	{
 		bufList.add(idx, inst);
-		//buf[bufferPointer++] = inst;
 	}
 
 	private void pushToBuffer(int inst)
@@ -153,16 +152,15 @@ public class Compiler
 	
 			if (scanner.sym == scanner.expressionMap.get("call")) // if it's a function call
 			{
-				int reg = funcCall();
-				freeRegister(reg);
+				funcCall();
+				//freeRegister(reg);
 				//scanner.Next();
 				continue;
 			}
 	
 			if (scanner.sym == scanner.expressionMap.get("if"))
 			{
-				int reg = ifStatement();
-				freeRegister(reg);
+				ifStatement();
 				scanner.Next();
 				continue;
 			}
@@ -171,7 +169,6 @@ public class Compiler
 			{
 				
 				whileLoop();
-				//scanner.Next();
 				continue;
 			}
 
@@ -224,7 +221,6 @@ public class Compiler
 			{
 				int expReg = exp();
 				Result r = varMap.get(myIdent);
-				// STW that register value in the variable's memory location.
 				pushToBuffer(DLX.assemble(STW, expReg, 30, r.address));
 				freeRegister(expReg);
 			}
@@ -238,65 +234,76 @@ public class Compiler
 	public int ifStatement()
 	{
 		scanner.Next();
+
+		int numInstructionsBeforeRelation = bufList.size();
+
 		retRelation rel = relation();
 
-        if (rel == null) error();
-		if (scanner.sym != scanner.expressionMap.get("then")) error();
+		numInstructionsBeforeRelation = bufList.size() - numInstructionsBeforeRelation;
 
+        if (scanner.sym != scanner.expressionMap.get("then")) error();
+		
 		scanner.Next();
 
         rel.offset = statSequence();
-        int numElseInstructions = 1;
-        
+        int elseBlockSize = 0; // How many instructions will occur in the else block?
+        int elseStatement = 0; // Do we even have an else statement? Used for instruction number calculation later.
+
         if (scanner.sym == scanner.expressionMap.get("else")) {
             scanner.Next();
-            int finishIndex = bufList.size();
-            int numElseStuff = statSequence();
-			bufList.add(finishIndex, DLX.assemble(40, 0, numElseStuff + 1));
-            numElseInstructions += numElseStuff;
-        }
+			elseStatement = 1; 
 
-        bufList.add(rel.idx + 1, DLX.assemble(rel.opcode, rel.regno, rel.offset + numElseInstructions + 1)); 
+            int currentIndex = bufList.size();
+            elseBlockSize = statSequence();
+
+			bufList.add(currentIndex, DLX.assemble(BEQ, 0, elseBlockSize + 1));
+        }
+		
+		bufList.add(rel.idx, DLX.assemble(rel.opcode, rel.regno, bufList.size() - rel.idx - elseBlockSize + 1));
+		freeRegister(rel.regno);
 
         while(scanner.sym != scanner.expressionMap.get("fi"))
 		{
 			scanner.Next();
 		}
 
-        //freeRegister(r.reg);
-        return rel.regno;
+        return 0;
 	}
 
 	public int whileLoop()
 	{
 		int ret = 0;
 		scanner.Next();
+		
+		int numInstructionsBeforeRelation = bufList.size();
+
 		retRelation rel = relation();
 
-		int offset = 0;
+		numInstructionsBeforeRelation = bufList.size() - numInstructionsBeforeRelation;
+
+		int numInstructionToGoForward = 0;
+
 		if (scanner.sym == scanner.expressionMap.get("do"))
 		{
 			scanner.Next();
-			offset = statSequence();
+			numInstructionToGoForward += statSequence();
 		}              
 		if (scanner.sym != scanner.expressionMap.get("od"))
 		{
 			error();
 		}        
-		pushToBuffer(rel.idx, DLX.assemble(rel.opcode, rel.regno, offset + 2));   
 
-		pushToBuffer(DLX.assemble(BEQ, 0, (offset + 3) * -1 )); 
+		pushToBuffer(rel.idx, DLX.assemble(rel.opcode, rel.regno, numInstructionToGoForward + 2)); // add two to skip the BEQ
+		freeRegister(rel.regno);
+
+		pushToBuffer(DLX.assemble(BEQ, 0, (numInstructionsBeforeRelation + numInstructionToGoForward + 1) * -1 )); 
 
 		scanner.Next();
-		ret = 0;
-
-		freeRegister(rel.regno);
 		return ret;
 	}
 
 	public retRelation relation()
 	{
-		int ret;
 		int exp1 = exp();
 		int op = scanner.sym;
 		int myOp = 0;
@@ -334,7 +341,6 @@ public class Compiler
 		}
 		else
 		{
-			ret = 0;
 			error();
 		}
 		freeRegister(exp1);
@@ -343,74 +349,40 @@ public class Compiler
 	}
 
 	int exp() {
-		int ret; 
 		int t = term();
-		int nextReg = getNextReg();
-		boolean hitFlag = false;
 		while (scanner.sym == scanner.expressionMap.get("+") || scanner.sym == scanner.expressionMap.get("-")) {
-			hitFlag = true;
 			boolean isMinus = scanner.sym == scanner.expressionMap.get("-");
 			scanner.Next();
 			if (!isMinus) // if we're substracting or adding.
 			{
 				int tempRegisterNumber = term();
-				pushToBuffer(DLX.assemble(ADD, nextReg, t, tempRegisterNumber));
-				freeRegister(tempRegisterNumber);		
-				freeRegister(t);
-
+				pushToBuffer(DLX.assemble(ADD, t, t, tempRegisterNumber));
+				freeRegister(tempRegisterNumber);
 			}
 			if (isMinus)
 			{
 				int tempRegisterNumber = term();
-				pushToBuffer(DLX.assemble(SUB, nextReg, t, tempRegisterNumber));
+				pushToBuffer(DLX.assemble(SUB, t, t, tempRegisterNumber));
 				freeRegister(tempRegisterNumber);
-				freeRegister(t);
 			}
 		}
-		if (hitFlag) {
-			return nextReg;
-		}
-		else {
-			freeRegister(nextReg);
-			ret = t; 
-			return ret;
-		}
+		return t;
 	}
 
 	int term() {
-		int ret;
-		
-		int t = factor();
-		int nextReg = getNextReg();
-		boolean hitFlag = false;
-
-		while (scanner.sym == scanner.expressionMap.get("*")) {
-			hitFlag = true;
+		int t = factor(); // TODO: if scanner.sym is a number, return the value rather than the register.
+		boolean multiply = false;
+		while (scanner.sym == scanner.expressionMap.get("*") || scanner.sym == scanner.expressionMap.get("/")) {
+			if (scanner.sym == scanner.expressionMap.get("*")) multiply = true;
 			scanner.Next();
-			//t *= factor(); // use MULT maybe?
 			int factorReg = factor();
-			pushToBuffer( DLX.assemble(MUL, nextReg, t, factorReg) );
-			freeRegister(t);
+			if (multiply)
+				pushToBuffer( DLX.assemble(MUL, t, t, factorReg) );
+			else // divide
+				pushToBuffer( DLX.assemble(DIV, t, t, factorReg) );
 			freeRegister(factorReg);
 		}
-		while (scanner.sym == scanner.expressionMap.get("/")) {
-			hitFlag = true;
-			scanner.Next();
-			//t /= factor(); // maybe we can DIV here
-			int factorReg = factor();
-			pushToBuffer( DLX.assemble(DIV, nextReg, t, factorReg) );
-			freeRegister(t);
-			freeRegister(factorReg);
-		}
-		if (hitFlag)
-		{
-			ret = nextReg;
-		}
-		else
-		{
-			ret = t;
-		}
-		return ret;
+		return t;
 	}
 
 	int factor() {
@@ -421,12 +393,11 @@ public class Compiler
 			int nextReg = getNextReg();
 			pushToBuffer(DLX.assemble(ADDI, nextReg, 0, scanner.val));
 			ret = nextReg; // return the location of the register.
-			//freeRegister(ret);
 			scanner.Next();
 		}
 		else if (scanner.sym == 61)
 		{	// var identity
-			if ( varMap.get(scanner.Id2String(scanner.id)) == null)  // if we do have that variable.
+			if ( varMap.get(scanner.Id2String(scanner.id)) == null)  // if we do not have that variable.
 			{
 				// add it to the reg map
 				String name = scanner.Id2String(scanner.id);
@@ -435,13 +406,11 @@ public class Compiler
 			}
 		
 			Result r = varMap.get(scanner.Id2String(scanner.id));
-			if (r.regno == -1) r.regno = getNextReg();
+			ret = getNextReg();
 			
 			// LDW the value in memory to the register.
-			pushToBuffer(DLX.assemble(LDW, r.regno, 30, r.address));
+			pushToBuffer(DLX.assemble(LDW, ret, 30, r.address));
 
-			ret = r.regno;
-			//freeRegister(ret);
 			scanner.Next();
 		}
 		else if (scanner.sym == scanner.expressionMap.get("("))
@@ -456,6 +425,8 @@ public class Compiler
 		else if (scanner.sym == scanner.expressionMap.get("call"))
 		{
 			ret = funcCall();
+			if (ret != 0) freeRegister( ret );
+			if (ret == 0) return mostRecentlyUsedReg;
 		}
 		else
 		{
@@ -465,7 +436,6 @@ public class Compiler
 	}
 
 	int funcCall() { // assume we are at a "call" reference.
-		int ret;
 		scanner.Next();
 		if (scanner.sym != 61)
 			error();
@@ -473,29 +443,26 @@ public class Compiler
 		String myIdent = scanner.Id2String(scanner.id);
 		if (myIdent.equals("inputnum"))
 		{
-			int nextReg = getNextReg();
-			pushToBuffer(DLX.assemble(RDI, nextReg)); // read input value
-			//freeRegister(nextReg);
-			return nextReg;
+			int reg = getNextReg();
+			pushToBuffer(DLX.assemble(RDI, reg)); // read input value
+			freeRegister(reg);
+			return reg;
 		}
 		if (myIdent.equals("outputnum"))
 		{
 			scanner.Next();
-			if (scanner.sym == 61 && !varMap.containsKey(scanner.Id2String(scanner.id)))
-				return 1;
 			int myExpression = exp();
-			//outputNum(exp());
+
 			pushToBuffer(DLX.assemble(51, myExpression));
+			freeRegister(myExpression);
+
 			return myExpression;
-			//freeRegister(myExpression);
 		}
 		if (myIdent.equals("outputnewline"))
 		{
-			//outputnewline();
 			pushToBuffer(DLX.assemble(53)); // write new line opcode
 		}
-		ret = 0;
-		return ret;
+		return 0;
 	}
 
 	int getNextMemLocation() {

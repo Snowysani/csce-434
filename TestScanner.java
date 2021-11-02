@@ -1,7 +1,5 @@
 package edu.tamu.csce434;
 
-import java.io.IOError;
-import java.io.IOException;
 
 public class TestScanner {
 

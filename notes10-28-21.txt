@@ -1,0 +1,61 @@
+Program analysis - discover facts about programs. 
+- Then you can optimize, find bugs, security flaws, maintainability, etc.
+Static analysis - dont run the program, over-conservative claims are made.
+Dynamic analysis - run with user instrumented code, insert own code inside the program code then run it.
+- Adds overhead to time/memory consumption
+
+Static Analysis in depth
+- Must be sound. => Safe approximation, a larger set of possibilities than will ever happen when running the program is considered.
+- Follows the Formalism mindset. Lattice theory, fixedpoint computation (repeat until all known facts are exhausted)
+
+Lattice theory
+- a partially ordered set (L , <=)
+- Any two elements have a supremum (least upper bound) and infimum (greatest lower bound)
+- Any two elements a and b in L have a join (a V b) [supremum]
+- Any two elements a and b in L have a meet (a ^ b) [infimum]
+- Semi-lattice: A join only has a join for any non-empty finite subset, a meet only has the bottom not the top
+
+Fixedpoint Computation
+- Keep doing the function until no more modification
+
+Dataflow Analysis
+- Intraprocedural analysis: Focuses on individual functions, no dataflow across functions is tracked
+- Interprocedural analysis: Analyze the whole program, way more expensive.
+
+Available Expression Analysis 
+- For each program point, determine which exp have been computed and not modified on all paths to the program point 
+- Kill and gen sets, need to review this in slides. Seems like magic.
+- Went through a kill/gen example. It's a bit strange at first. Dont get it yet.
+Algorithm: X = (N \ {expressions with an x}) U {subexpressions of a without an x}
+
+Reaching Definition Analysis 
+- Determine which assignments have been made/overwritten once the program reaches that program point.
+- Do this for each point.
+Algorithm: X = (N\{(x,?) , (x,1), ...}) U {(x, l)} 
+- (kill the value of x on whatever program path, generate the new assignment for x as the current location)
+- Do not generate if not an assignment. Comparisons, like > and <, are null character 0\
+- Except we did an example after where it did gneerate for the condition
+- A bit confused
+
+Live Variable Analysis
+- Live variables are live at the exit from a label if we have a path from the label to the use of the variable that doesn't re-define the variable 
+- Basically check the variable isn't redefined and has a path to its use, making it "live"
+a = 2
+x = a + b (live, i think, because a is used. I think.)
+- For each program point, check which variables are live.
+Algorithm: N = (X\{x}) U {all variables of a}
+- kill x, generate all variables of a.
+
+Forward vs Backward (Analysis)
+- Live is Backward
+- Available Expression and REaching Definition are forward. 
+- Depends on what you're interested in knowing, entry condition or exit condition.
+- Gives us an example to work at home, on a slide for Constant Propagation.
+
+Other Types of Local Optimization
+- Arithmetic Simplication
+ - -Ex: 4 * a becomes a << 2
+- Constant Folding
+ - - Evaluate expressions at compile time for constant values, like x = 4 * 5 becomes x = 20 .
+
+ 
