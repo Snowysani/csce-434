@@ -55,6 +55,9 @@ public class DLX {
 			{
 				System.out.print(" Reg: " + i  + " " + R[i]);
 			}
+			//if (PC >= 9)
+			//System.out.print("Disassemble of R31: " + disassemble(R[31]));
+			
 			System.out.println("");
 			switch (op) {
 				case ADD:

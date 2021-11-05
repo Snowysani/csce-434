@@ -442,8 +442,8 @@ public class Compiler
 			procedureReturn++;
 		}
 		bufList.add(bufList.size() - a, DLX.assemble(BEQ, 0, bufList.size() - f.startInstruction + 3 + procedureReturn));
-		bufList.add(bufList.size() - a, DLX.assemble(PSH, 31, 29, 4));
-		bufList.add(bufList.size() - a, DLX.assemble(PSH, 28, 29, 4));
+		bufList.add(bufList.size() - a, DLX.assemble(PSH, 31, 29, 0));
+		bufList.add(bufList.size() - a, DLX.assemble(PSH, 28, 29, 0));
 		// // return to R31 after BSR.
 		// bufList.add(DLX.assemble(RET, 31));
 
@@ -467,6 +467,7 @@ public class Compiler
 		int paramBeginLocation = f.memBegin;
 		// populate those
 		scanner.Next(); 
+		int i = f.numParams - 1;
 		while (scanner.sym != scanner.expressionMap.get(")"))
 		{
 			if (scanner.sym == scanner.expressionMap.get(","))
@@ -476,8 +477,8 @@ public class Compiler
 			}
 			int myExp = exp();
 			// STW that result
-			int loc = getNextMemLocation();
-			bufList.add(DLX.assemble(PSH, myExp, 30, loc));
+			// TODO: Figure out how to properly push the current expressions to the function formal params memory.
+			bufList.add(DLX.assemble(PSH, myExp, 30, f.memBegin + (i--))); // used to be 30
 			freeRegister(myExp);
 		}
 		// okay. now we're at )
@@ -693,8 +694,8 @@ public class Compiler
 			the return address register will be automatically updated to return after the bsr instruction
 			*/
 			Function f = functionMap.get(myIdent);
-			bufList.add(DLX.assemble(POP, 28, 29, 4));
-			bufList.add(DLX.assemble(POP, 31, 29, 8));
+			bufList.add(DLX.assemble(POP, 28, 29, 0));
+			bufList.add(DLX.assemble(POP, 31, 29, 0));
 			// Store the current return address (R31) into memory right above FP (R28)
 			
 			// Branch to the function with BSR
@@ -707,8 +708,9 @@ public class Compiler
 
 	int getNextMemLocation() {
 		int j = memTracker;
-		j += -4; // multiply by four for memory mapping
-		return j;
+		memTracker += -4;
+		//j += -4; // multiply by four for memory mapping
+		return memTracker;
 	}
 
 class Result {
