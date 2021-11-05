@@ -1,7 +1,6 @@
 main
-var input;
 
-function factIter(n);
+function factIter(n) // n=3
 var i, f;
 {
 	let i <- 1;
@@ -13,19 +12,18 @@ var i, f;
 	return f
 };
 
-function factRec(n);
-{
-	if n <= 1 then
-		return 1
-	fi;
-	return call factRec(n - 1) * n
-};
+//function factRec(n)
+//{
+//	if n <= 1 then
+//		return 1;
+//	fi;
+//	return call factRec(n - 1) * n
+//};
 
 {
-	let input <- call inputnum();
-	call outputnum(call factIter(input));
+	call outputnum(call factIter(3));
 	call outputnewline();
-	call outputnum(call factRec(input));
-	call outputnewline()
+	//call outputnum(call factRec(3));
+	//call outputnewline()
 }
 .

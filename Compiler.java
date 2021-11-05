@@ -19,6 +19,7 @@ public class Compiler
 	int bufferPointer;
 
 	private int token;
+	int funcCounter;
 
 	int memTracker;
 
@@ -40,6 +41,7 @@ public class Compiler
 		varMap = new java.util.HashMap< String, Result >();
 		functionMap = new java.util.HashMap< String, Function>();
 		memTracker = 0;
+		funcCounter = 0;
 	}
 	
 	
@@ -78,22 +80,23 @@ public class Compiler
 			int a = defineFunction();
 			scanner.Next();
 			token = scanner.sym;
+			if (token == scanner.expressionMap.get(";"))
+			{
+				scanner.Next();
+				token = scanner.sym;
+			}
+			// now we should have an open {
+			if (token == scanner.expressionMap.get("{"))
+			{
+				scanner.Next();
+				token = scanner.sym;
+			}
 		}
-		if (token == scanner.expressionMap.get(";"))
-		{
-			scanner.Next();
-			token = scanner.sym;
-		}
-		// now we should have an open {
-		if (token == scanner.expressionMap.get("{"))
-		{
-			scanner.Next();
-			token = scanner.sym;
-		}
-		else
-		{
-			error();
-		}
+
+		// else
+		// {
+		// 	error();
+		// }
 		statSequence();
 
 		pushToBuffer(DLX.assemble(RET, 0));
@@ -166,7 +169,7 @@ public class Compiler
 			if (scanner.sym == scanner.expressionMap.get("let")) // if it's an assignment
 			{
 				assignment();
-				scanner.Next();
+				//scanner.Next();
 				continue;
 			}
 	
@@ -193,9 +196,9 @@ public class Compiler
 			if (scanner.sym == scanner.expressionMap.get("return"))
 			{
 				// do return stuff
-				scanner.Next();
+				//scanner.Next();
 				returnStatement();
-				scanner.Next();
+				//scanner.Next();
 				// If needed, return here, and pass the current sym to the funcProcedure.
 				// If current sym == return, continue. Or something/
 				continue; 
@@ -251,7 +254,7 @@ public class Compiler
 			{
 				int expReg = exp();
 				Result r = varMap.get(myIdent);
-				pushToBuffer(DLX.assemble(STW, expReg, 30, r.address));
+				pushToBuffer(DLX.assemble(STW, expReg, 30, -4 + r.localOffset * (- 4)));
 				freeRegister(expReg);
 			}
 			else // its not in the var map
@@ -321,7 +324,7 @@ public class Compiler
 			error();
 		}        
 
-		pushToBuffer(rel.idx, DLX.assemble(rel.opcode, rel.regno, numInstructionToGoForward + 2)); // add two to skip the BEQ
+		pushToBuffer(rel.idx, DLX.assemble(rel.opcode, rel.regno, numInstructionToGoForward + 2));
 		freeRegister(rel.regno);
 
 		pushToBuffer(DLX.assemble(BEQ, 0, (numInstructionsBeforeRelation + numInstructionToGoForward + 1) * -1 )); 
@@ -346,6 +349,12 @@ public class Compiler
 
 		int memBeginLocation = memTracker;
 
+		Function f = new Function();
+		f.name = funcName;
+
+		f.numParams = 0;
+		f.numVars = 0;
+
 		// accept the formal params. 
 		while (token != 70 && token != scanner.expressionMap.get(")"))
 		{
@@ -355,14 +364,13 @@ public class Compiler
 				Result r = new Result(name, -1, getNextMemLocation());
 				r.isParam = true; // it is a param
 				r.functionName = funcName;
-				r.localOffset = localVarMap.size();
-				localVarMap.put(name, r);
+				r.localOffset = f.numParams++;
+				varMap.put(name, r);
 			}
 			scanner.Next();
 			token = scanner.sym;
 		}
 
-		Function f = new Function();
 		f.returnAddress = getNextMemLocation();
 		f.fp = getNextMemLocation();
 		f.startInstruction = bufList.size();
@@ -379,8 +387,8 @@ public class Compiler
 				Result r = new Result(name, -1, getNextMemLocation());
 				r.isParam = false; // it is a param
 				r.functionName = funcName;
-				r.localOffset = 2 + localVarMap.size();
-				localVarMap.put(name, r);
+				r.localOffset = 2 + f.numVars++;
+				varMap.put(name, r);
 			}
 			scanner.Next();
 			token = scanner.sym;
@@ -405,7 +413,6 @@ public class Compiler
 			error();
 		}
 		f.localVarMap = localVarMap;
-		f.name = funcName;
 		f.numberOfInstructions = a;
 		f.memBegin = memBeginLocation;
 		functionMap.put(funcName, f);
@@ -413,7 +420,7 @@ public class Compiler
 		// add a branch to the top of these instructions so its skipped.
 		//bufList.add(DLX.assemble(BSR, bufList.size() - f.numberOfInstructions));
 
-		bufList.add(bufList.size() - a, DLX.assemble(BEQ, 0, f.numberOfInstructions + 3));
+		bufList.add(bufList.size() - a, DLX.assemble(BEQ, 0, f.numberOfInstructions + 1 + 4));
 		bufList.add(bufList.size() - a, DLX.assemble(PSH, 31, 29, 4));
 		bufList.add(bufList.size() - a, DLX.assemble(PSH, 28, 29, 4));
 		// // return to R31 after BSR.
@@ -466,7 +473,7 @@ public class Compiler
 
 	public int returnStatement()
 	{
-		//scanner.Next();
+		scanner.Next();
 		int myExp = exp();
 
 		// Register 27 is now my return register.
@@ -577,25 +584,18 @@ public class Compiler
 		{	// var identity
 			if ( varMap.get(scanner.Id2String(scanner.id)) == null)  // if we do not have that variable.
 			{
-				// add it to the reg map
-				String name = scanner.Id2String(scanner.id);
-				Result r = new Result(name, -1, getNextMemLocation());
-				varMap.put(name, r);
+				//TODO: relook at this code.
+				// // add it to the reg map
+				// String name = scanner.Id2String(scanner.id);
+				// Result r = new Result(name, -1, getNextMemLocation());
+				// varMap.put(name, r);
 			}
 		
 			Result r = varMap.get(scanner.Id2String(scanner.id));
 			ret = getNextReg();
-			int memOffset = 30;
-			if (r.functionName != "main")
-			{
-				Function f = functionMap.get(r.functionName);
-				// LDW the value in memory to the register.
-				pushToBuffer(DLX.assemble(LDW, ret, 28, r.localOffset * 4));
-			}
-			else{
 			// LDW the value in memory to the register.
-			pushToBuffer(DLX.assemble(LDW, ret, 30, r.address));
-			}
+			//Function f = functionMap.get(r.functionName);
+			pushToBuffer(DLX.assemble(LDW, ret, 30, -4 + r.localOffset * (- 4)));
 
 
 			scanner.Next();
@@ -712,6 +712,9 @@ class Function {
 	int returnAddress;
 	int fp;
 	int startInstruction;
+	
+	int numParams;
+	int numVars;
 }
 
 class retRelation {

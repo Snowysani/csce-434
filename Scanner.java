@@ -59,7 +59,7 @@ public class Scanner {
         for (int i = 0; i < len; i++) {
            // checks whether the character is not a letter
            // if it is not a letter ,it will return false
-           if ((Character.isLowerCase(s.charAt(i)) == false)) {
+           if ((Character.isAlphabetic(s.charAt(i)) == false)) {
               return false;
            }
         }
@@ -265,7 +265,8 @@ public class Scanner {
                                 || contents.charAt(contentsPointer + 1) == '}'
                                 || contents.charAt(contentsPointer + 1) == ')'
                                 || contents.charAt(contentsPointer + 1) == '\n'
-                                || contents.charAt(contentsPointer + 1) == ',')
+                                || contents.charAt(contentsPointer + 1) == ','
+                                || contents.charAt(contentsPointer + 1) == '(')
                             ) 
                             ||
                             (!tempToken.isEmpty() && (contentsPointer + 1 >= contents.length()))
