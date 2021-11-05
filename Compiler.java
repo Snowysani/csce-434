@@ -148,6 +148,7 @@ public class Compiler
 			{
 				String name = scanner.Id2String(scanner.id);
 				Result r = new Result(name, -1, getNextMemLocation());
+				r.isGlobal = true;
 				varMap.put(name, r);
 			}
 			else if (token == 31) // if its a comma, continue
@@ -240,12 +241,13 @@ public class Compiler
 		String myIdent = scanner.Id2String(scanner.id);
 		scanner.Next();
 		
-		if (!varMap.containsKey(myIdent))
-		{
-			String name = scanner.Id2String(scanner.id);
-			Result r = new Result(name, -1, getNextMemLocation());
-			varMap.put(name, r);
-		}
+		// if (!varMap.containsKey(myIdent))
+		// {
+		// 	String name = scanner.Id2String(scanner.id);
+		// 	Result r = new Result(name, -1, getNextMemLocation());
+		// 	r.isGlobal = false;
+		// 	varMap.put(name, r);
+		// }
 
 		if (scanner.sym == scanner.expressionMap.get("<-"))
 		{
@@ -254,7 +256,20 @@ public class Compiler
 			{
 				int expReg = exp();
 				Result r = varMap.get(myIdent);
-				pushToBuffer(DLX.assemble(STW, expReg, 30, -4 + r.localOffset * (- 4)));
+				if (r.isGlobal)
+				{
+					pushToBuffer(DLX.assemble(STW, expReg, 30, r.address));
+				}
+				else if (r.isParam)
+				{
+					// Since it's a parameter, we have to go up the stack via the frame pointer. 
+					pushToBuffer(DLX.assemble(STW, expReg, 28, r.localOffset * (- 4)));
+				}
+				else // r is a local var
+				{
+					// Since it's local, it lives below the frame pointer. 
+					pushToBuffer(DLX.assemble(STW, expReg, 28, r.localOffset * (4)));
+				}
 				freeRegister(expReg);
 			}
 			else // its not in the var map
@@ -339,6 +354,7 @@ public class Compiler
 		{
 			error();
 		}
+		Boolean isProcedure = scanner.sym == scanner.expressionMap.get("procedure");
 		// Define the function name and get its parameters.
 		scanner.Next();
 		String funcName = scanner.Id2String(scanner.id);
@@ -351,7 +367,7 @@ public class Compiler
 
 		Function f = new Function();
 		f.name = funcName;
-
+		f.isProcedure = isProcedure;
 		f.numParams = 0;
 		f.numVars = 0;
 
@@ -363,6 +379,7 @@ public class Compiler
 				String name = scanner.Id2String(scanner.id);
 				Result r = new Result(name, -1, getNextMemLocation());
 				r.isParam = true; // it is a param
+				r.isGlobal = false;
 				r.functionName = funcName;
 				r.localOffset = f.numParams++;
 				varMap.put(name, r);
@@ -386,6 +403,7 @@ public class Compiler
 				String name = scanner.Id2String(scanner.id);
 				Result r = new Result(name, -1, getNextMemLocation());
 				r.isParam = false; // it is a param
+				r.isGlobal = false;
 				r.functionName = funcName;
 				r.localOffset = 2 + f.numVars++;
 				varMap.put(name, r);
@@ -419,8 +437,11 @@ public class Compiler
 
 		// add a branch to the top of these instructions so its skipped.
 		//bufList.add(DLX.assemble(BSR, bufList.size() - f.numberOfInstructions));
-
-		bufList.add(bufList.size() - a, DLX.assemble(BEQ, 0, f.numberOfInstructions + 1 + 4));
+		int procedureReturn = 0;
+		if (f.isProcedure) {
+			procedureReturn++;
+		}
+		bufList.add(bufList.size() - a, DLX.assemble(BEQ, 0, bufList.size() - f.startInstruction + 3 + procedureReturn));
 		bufList.add(bufList.size() - a, DLX.assemble(PSH, 31, 29, 4));
 		bufList.add(bufList.size() - a, DLX.assemble(PSH, 28, 29, 4));
 		// // return to R31 after BSR.
@@ -463,8 +484,12 @@ public class Compiler
 		scanner.Next();
 
 		// Branch to that function
-		bufList.add(DLX.assemble(BSR, -(bufList.size() - f.startInstruction - 1)));
-		//bufList.add(DLX.assemble(JSR, (f.startInstruction + 1) * 4));
+		//bufList.add(DLX.assemble(BSR, f.startInstruction +  1));
+		if (f.isProcedure)
+		{
+			bufList.add(DLX.assemble(RET, 31)); // want to skip the next JSR. 
+		}
+		bufList.add(DLX.assemble(JSR, (f.startInstruction + 1) * 4));
 
 		//bufList.add(DLX.assemble(BSR, f.fp));
 
@@ -595,8 +620,18 @@ public class Compiler
 			ret = getNextReg();
 			// LDW the value in memory to the register.
 			//Function f = functionMap.get(r.functionName);
-			pushToBuffer(DLX.assemble(LDW, ret, 30, -4 + r.localOffset * (- 4)));
-
+			if (r.isGlobal)
+			{
+				pushToBuffer(DLX.assemble(LDW, ret, 30, r.address));
+			}
+			else if (r.isParam) // go up 
+			{
+				pushToBuffer(DLX.assemble(LDW, ret, 28, r.localOffset * (-4)));
+			}
+			else // is a local var
+			{
+				pushToBuffer(DLX.assemble(LDW, ret, 28, r.localOffset * (4)));
+			}
 
 			scanner.Next();
 		}
@@ -684,6 +719,7 @@ class Result {
 	String name;
 	String functionName;
 	Boolean isParam;
+	Boolean isGlobal;
 	int localOffset;
 
 	Result(String _name, int reg, int mem) {
@@ -712,7 +748,7 @@ class Function {
 	int returnAddress;
 	int fp;
 	int startInstruction;
-	
+	Boolean isProcedure;
 	int numParams;
 	int numVars;
 }

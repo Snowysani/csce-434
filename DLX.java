@@ -50,6 +50,12 @@ public class DLX {
 				origc = c; // used for RET
 				c = R[c];  // dirty trick
 			}
+			System.out.print("Current instruction number: " + PC);
+			for (int i = 28; i <= 31; i++)
+			{
+				System.out.print(" Reg: " + i  + " " + R[i]);
+			}
+			System.out.println("");
 			switch (op) {
 				case ADD:
 				case ADDI:
