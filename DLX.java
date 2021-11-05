@@ -244,7 +244,7 @@ public class DLX {
 		}
 		//System.out.println("start register print");
 
-		//for (int i = 0; i < 32; i++) { System.out.println(" " + i + ": " + R[i]); };
+		for (int i = 0; i < 32; i++) { System.out.println(" " + i + ": " + R[i]); };
 		//System.out.println("end register print");
 	}
 

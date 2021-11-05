@@ -1,7 +1,7 @@
 package edu.tamu.csce434;
 
 import java.util.List;
-import java.util.ArrayList;
+import java.util.ArrayList; 
 
 public class Compiler 
 {
@@ -20,7 +20,11 @@ public class Compiler
 
 	private int token;
 
+	int memTracker;
+
 	java.util.Map< String, Result > varMap;
+	java.util.Map< String, Function > functionMap;
+
 	
 	// Constructor of your Compiler
 	public Compiler(String args)
@@ -34,6 +38,8 @@ public class Compiler
 		R[30] = DLX.MemSize - 1;
 		bufferPointer = 0; mostRecentlyUsedReg = 1;
 		varMap = new java.util.HashMap< String, Result >();
+		functionMap = new java.util.HashMap< String, Function>();
+		memTracker = 0;
 	}
 	
 	
@@ -66,6 +72,18 @@ public class Compiler
 			token = scanner.sym;
 		}
 
+		// check for any functions
+		while (token == scanner.expressionMap.get("function") || token == scanner.expressionMap.get("procedure"))
+		{
+			int a = defineFunction();
+			scanner.Next();
+			token = scanner.sym;
+		}
+		if (token == scanner.expressionMap.get(";"))
+		{
+			scanner.Next();
+			token = scanner.sym;
+		}
 		// now we should have an open {
 		if (token == scanner.expressionMap.get("{"))
 		{
@@ -77,6 +95,8 @@ public class Compiler
 			error();
 		}
 		statSequence();
+
+		pushToBuffer(DLX.assemble(RET, 0));
 
 		// stream arraylist to the buffer.
 		buf = bufList.stream().mapToInt(i -> i).toArray();
@@ -153,8 +173,6 @@ public class Compiler
 			if (scanner.sym == scanner.expressionMap.get("call")) // if it's a function call
 			{
 				funcCall();
-				//freeRegister(reg);
-				//scanner.Next();
 				continue;
 			}
 	
@@ -172,9 +190,21 @@ public class Compiler
 				continue;
 			}
 
+			if (scanner.sym == scanner.expressionMap.get("return"))
+			{
+				// do return stuff
+				scanner.Next();
+				returnStatement();
+				scanner.Next();
+				// If needed, return here, and pass the current sym to the funcProcedure.
+				// If current sym == return, continue. Or something/
+				continue; 
+			}
+
 			if (scanner.sym == scanner.expressionMap.get("fi") 
 				|| scanner.sym == scanner.expressionMap.get("else")
-				|| scanner.sym == scanner.expressionMap.get("od"))
+				|| scanner.sym == scanner.expressionMap.get("od")
+				|| scanner.sym == scanner.expressionMap.get("}"))
 			{
 				return bufList.size() - i1;
 			}
@@ -247,11 +277,9 @@ public class Compiler
 
         rel.offset = statSequence();
         int elseBlockSize = 0; // How many instructions will occur in the else block?
-        int elseStatement = 0; // Do we even have an else statement? Used for instruction number calculation later.
 
         if (scanner.sym == scanner.expressionMap.get("else")) {
             scanner.Next();
-			elseStatement = 1; 
 
             int currentIndex = bufList.size();
             elseBlockSize = statSequence();
@@ -300,6 +328,156 @@ public class Compiler
 
 		scanner.Next();
 		return ret;
+	}
+
+	public int defineFunction()
+	{
+		if (scanner.sym != scanner.expressionMap.get("function") && scanner.sym != scanner.expressionMap.get("procedure"))
+		{
+			error();
+		}
+		// Define the function name and get its parameters.
+		scanner.Next();
+		String funcName = scanner.Id2String(scanner.id);
+		scanner.Next();
+		token = scanner.sym;
+
+		java.util.Map< String, Result > localVarMap = new java.util.HashMap< String, Result >(); 
+
+		int memBeginLocation = memTracker;
+
+		// accept the formal params. 
+		while (token != 70 && token != scanner.expressionMap.get(")"))
+		{
+			if (token == 61)
+			{
+				String name = scanner.Id2String(scanner.id);
+				Result r = new Result(name, -1, getNextMemLocation());
+				r.isParam = true; // it is a param
+				r.functionName = funcName;
+				r.localOffset = localVarMap.size();
+				localVarMap.put(name, r);
+			}
+			scanner.Next();
+			token = scanner.sym;
+		}
+
+		Function f = new Function();
+		f.returnAddress = getNextMemLocation();
+		f.fp = getNextMemLocation();
+		f.startInstruction = bufList.size();
+
+		// store the current return address into memory right above the fp 
+
+
+		// set up the local variables. 
+		while (token != 70 && token != scanner.expressionMap.get("{"))
+		{
+			if (token == 61)
+			{
+				String name = scanner.Id2String(scanner.id);
+				Result r = new Result(name, -1, getNextMemLocation());
+				r.isParam = false; // it is a param
+				r.functionName = funcName;
+				r.localOffset = 2 + localVarMap.size();
+				localVarMap.put(name, r);
+			}
+			scanner.Next();
+			token = scanner.sym;
+		}
+
+		// should have a semicolon
+		if (scanner.sym == scanner.expressionMap.get(";"))
+		{
+			scanner.Next();
+		}
+		int a = 0;
+		if (scanner.sym == scanner.expressionMap.get("{"))
+		{
+			// do the func body
+			int stat = statSequence();
+			a += stat;
+			//a++;
+		}
+
+		if (scanner.sym != scanner.expressionMap.get("}"))
+		{
+			error();
+		}
+		f.localVarMap = localVarMap;
+		f.name = funcName;
+		f.numberOfInstructions = a;
+		f.memBegin = memBeginLocation;
+		functionMap.put(funcName, f);
+
+		// add a branch to the top of these instructions so its skipped.
+		//bufList.add(DLX.assemble(BSR, bufList.size() - f.numberOfInstructions));
+
+		bufList.add(bufList.size() - a, DLX.assemble(BEQ, 0, f.numberOfInstructions + 3));
+		bufList.add(bufList.size() - a, DLX.assemble(PSH, 31, 29, 4));
+		bufList.add(bufList.size() - a, DLX.assemble(PSH, 28, 29, 4));
+		// // return to R31 after BSR.
+		// bufList.add(DLX.assemble(RET, 31));
+
+
+		return 0;
+	}
+
+	public int functionProcedure()
+	{
+		// call that function
+		String funcName = scanner.Id2String(scanner.id);
+		Function f = functionMap.get(funcName);
+		if (f == null)
+		{
+			error();
+		}
+		scanner.Next();
+
+		// load the current formal input params to their respective mems. 
+		
+		int paramBeginLocation = f.memBegin;
+		// populate those
+		scanner.Next(); 
+		while (scanner.sym != scanner.expressionMap.get(")"))
+		{
+			if (scanner.sym == scanner.expressionMap.get(","))
+			{
+				scanner.Next();
+				continue;
+			}
+			int myExp = exp();
+			// STW that result
+			int loc = getNextMemLocation();
+			bufList.add(DLX.assemble(PSH, myExp, 30, loc));
+			freeRegister(myExp);
+		}
+		// okay. now we're at )
+		scanner.Next();
+
+		// Branch to that function
+		bufList.add(DLX.assemble(BSR, -(bufList.size() - f.startInstruction - 1)));
+		//bufList.add(DLX.assemble(JSR, (f.startInstruction + 1) * 4));
+
+		//bufList.add(DLX.assemble(BSR, f.fp));
+
+		return 0;
+	}
+
+	public int returnStatement()
+	{
+		//scanner.Next();
+		int myExp = exp();
+
+		// Register 27 is now my return register.
+		bufList.add(DLX.assemble(ADD, 27, 0, myExp));
+		freeRegister(myExp);
+		// Push the myExp register to the frame pointer
+
+		bufList.add(DLX.assemble(RET, 31));
+
+
+		return 27;
 	}
 
 	public retRelation relation()
@@ -407,9 +585,18 @@ public class Compiler
 		
 			Result r = varMap.get(scanner.Id2String(scanner.id));
 			ret = getNextReg();
-			
+			int memOffset = 30;
+			if (r.functionName != "main")
+			{
+				Function f = functionMap.get(r.functionName);
+				// LDW the value in memory to the register.
+				pushToBuffer(DLX.assemble(LDW, ret, 28, r.localOffset * 4));
+			}
+			else{
 			// LDW the value in memory to the register.
 			pushToBuffer(DLX.assemble(LDW, ret, 30, r.address));
+			}
+
 
 			scanner.Next();
 		}
@@ -462,68 +649,32 @@ public class Compiler
 		{
 			pushToBuffer(DLX.assemble(53)); // write new line opcode
 		}
+		if (functionMap.get(myIdent) != null)
+		{
+			functionProcedure();
+			/*
+			right before calling a function you store the current return address (r31) into memory right above the fp
+			then when you branch to the function with bsr
+			the return address register will be automatically updated to return after the bsr instruction
+			*/
+			Function f = functionMap.get(myIdent);
+			bufList.add(DLX.assemble(POP, 28, 29, 4));
+			bufList.add(DLX.assemble(POP, 31, 29, 8));
+			// Store the current return address (R31) into memory right above FP (R28)
+			
+			// Branch to the function with BSR
+			// bufList.add(DLX.assemble(BSR, -f.numberOfInstructions));
+			// return address will be automatically updated to return after the BSR instruction.
+			return 1;
+		}
 		return 0;
 	}
 
 	int getNextMemLocation() {
-		int j = varMap.size() + 1;
-		j *= -4; // multiply by four for memory mapping
+		int j = memTracker;
+		j += -4; // multiply by four for memory mapping
 		return j;
 	}
-
-	static final int ADD = 0;  
-	static final int SUB = 1;
-	static final int MUL = 2;
-	static final int DIV = 3;
-	static final int MOD = 4;
-	static final int CMP = 5;
-	static final int OR  = 8;
-	static final int AND = 9;
-	static final int BIC = 10;
-	static final int XOR = 11;
-	static final int LSH = 12;
-	static final int ASH = 13;
-	static final int CHK = 14;
-
-	static final int ADDI = 16;
-	static final int SUBI = 17;
-	static final int MULI = 18;
-	static final int DIVI = 19;
-	static final int MODI = 20;
-	static final int CMPI = 21;
-	static final int ORI  = 24;
-	static final int ANDI = 25;
-	static final int BICI = 26;
-	static final int XORI = 27;
-	static final int LSHI = 28;
-	static final int ASHI = 29;
-	static final int CHKI = 30;
-
-	static final int LDW = 32;
-	static final int LDX = 33;
-	static final int POP = 34;
-	static final int STW = 36;
-	static final int STX = 37;
-	static final int PSH = 38; 
-
-	static final int BEQ = 40;
-	static final int BNE = 41;
-	static final int BLT = 42;
-	static final int BGE = 43;
-	static final int BLE = 44;
-	static final int BGT = 45;
-	static final int BSR = 46;
-	static final int JSR = 48;
-	static final int RET = 49;
-
-	static final int RDI = 50;
-	static final int WRD = 51;
-	static final int WRH = 52;
-	static final int WRL = 53;
-	
-	static final int ERR = 63; // error opcode which is insertered by loader 
-	                           // after end of program code
-}
 
 class Result {
 	// from class whiteboard
@@ -531,16 +682,36 @@ class Result {
 	int address;
 	int value;
 	String name;
+	String functionName;
+	Boolean isParam;
+	int localOffset;
 
 	Result(String _name, int reg, int mem) {
 		regno = reg;
 		address = mem;
 		name = _name;
+		functionName = "main";
+	}
+	Result(String _name, int reg, int mem, String _functionName) {
+		regno = reg;
+		address = mem;
+		name = _name;
+		functionName = _functionName;
 	}
 
 	Result() {
-		regno = 0; address = 0; name = "";
+		regno = 0; address = 0; name = ""; functionName = "";
 	}
+}
+
+class Function {
+	int numberOfInstructions;
+	String name;
+	int memBegin;
+	java.util.Map< String, Result > localVarMap;
+	int returnAddress;
+	int fp;
+	int startInstruction;
 }
 
 class retRelation {
@@ -562,4 +733,59 @@ class retRelation {
         idx = i;
         offset = 0;
     }
+
+}
+static final int ADD = 0;  
+static final int SUB = 1;
+static final int MUL = 2;
+static final int DIV = 3;
+static final int MOD = 4;
+static final int CMP = 5;
+static final int OR  = 8;
+static final int AND = 9;
+static final int BIC = 10;
+static final int XOR = 11;
+static final int LSH = 12;
+static final int ASH = 13;
+static final int CHK = 14;
+
+static final int ADDI = 16;
+static final int SUBI = 17;
+static final int MULI = 18;
+static final int DIVI = 19;
+static final int MODI = 20;
+static final int CMPI = 21;
+static final int ORI  = 24;
+static final int ANDI = 25;
+static final int BICI = 26;
+static final int XORI = 27;
+static final int LSHI = 28;
+static final int ASHI = 29;
+static final int CHKI = 30;
+
+static final int LDW = 32;
+static final int LDX = 33;
+static final int POP = 34;
+static final int STW = 36;
+static final int STX = 37;
+static final int PSH = 38; 
+
+static final int BEQ = 40;
+static final int BNE = 41;
+static final int BLT = 42;
+static final int BGE = 43;
+static final int BLE = 44;
+static final int BGT = 45;
+static final int BSR = 46;
+static final int JSR = 48;
+static final int RET = 49;
+
+static final int RDI = 50;
+static final int WRD = 51;
+static final int WRH = 52;
+static final int WRL = 53;
+
+static final int ERR = 63; // error opcode which is insertered by loader 
+						   // after end of program code
+
 }

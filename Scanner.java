@@ -264,7 +264,8 @@ public class Scanner {
                                 (contents.charAt(contentsPointer + 1) == ' '
                                 || contents.charAt(contentsPointer + 1) == '}'
                                 || contents.charAt(contentsPointer + 1) == ')'
-                                || contents.charAt(contentsPointer + 1) == '\n')
+                                || contents.charAt(contentsPointer + 1) == '\n'
+                                || contents.charAt(contentsPointer + 1) == ',')
                             ) 
                             ||
                             (!tempToken.isEmpty() && (contentsPointer + 1 >= contents.length()))
@@ -414,7 +415,7 @@ public class Scanner {
         symMap.put(110, "var");
         symMap.put(111, "arr");
         symMap.put(112, "function");
-        symMap.put(113, "proc");
+        symMap.put(113, "procedure");
         symMap.put(150, "begin");
         symMap.put(200, "main");
         symMap.put(222, "comment");

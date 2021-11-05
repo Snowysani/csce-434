@@ -1,11 +1,21 @@
-// bad program, error expected
 main
-var ch;
+var input;
+
+function foo (x , y, z)
 {
-	//comment
-	;;
-	;
-	;
-	let p <- 2;
-	call outputnum(p);
-}.
+	call outputnum(x);
+	call outputnum(y);
+
+	if x > y then 
+		call outputnum(9);
+		return x;
+	fi;
+	return 7;
+};
+
+{
+	call outputnum(call foo(5, 3));
+	call outputnewline();
+	call outputnum(8);
+}
+.
