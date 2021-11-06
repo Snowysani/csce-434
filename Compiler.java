@@ -513,7 +513,7 @@ public class Compiler
 
 		// Register 27 is now my return register.
 		//bufList.add(DLX.assemble(ADD, 27, 0, myExp));
-		freeRegister(myExp);
+		//freeRegister(myExp);
 		// Push the myExp register to the frame pointer
 
 		bufList.add(DLX.assemble(RET, 31));

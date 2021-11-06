@@ -1,11 +1,17 @@
 main
-procedure checkforsanity()
+var input, myvar;
+
+function gettwosum(n)
+var i,k;
 {
-    call outputnum(5);
+    let i <- call inputnum();
+    let k <- i + n;
+    return k;
 };
 
-
 {
-    call checkforsanity();
+    let input <- call inputnum();
+    let myvar <- call gettwosum(input);
+    call outputnum(myvar);
     call outputnewline();
 }.
