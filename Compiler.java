@@ -21,6 +21,8 @@ public class Compiler
 	private int token;
 	int funcCounter;
 
+	int numofGlobalVars;
+
 	int memTracker;
 
 	java.util.Map< String, Result > varMap;
@@ -42,6 +44,7 @@ public class Compiler
 		functionMap = new java.util.HashMap< String, Function>();
 		memTracker = 0;
 		funcCounter = 0;
+		numofGlobalVars = 0;
 	}
 	
 	
@@ -149,6 +152,7 @@ public class Compiler
 				String name = scanner.Id2String(scanner.id);
 				Result r = new Result(name, -1, getNextMemLocation());
 				r.isGlobal = true;
+				numofGlobalVars++;
 				varMap.put(name, r);
 			}
 			else if (token == 31) // if its a comma, continue
@@ -263,12 +267,12 @@ public class Compiler
 				else if (r.isParam)
 				{
 					// Since it's a parameter, we have to go up the stack via the frame pointer. 
-					pushToBuffer(DLX.assemble(STW, expReg, 28, r.localOffset * (- 4)));
+					pushToBuffer(DLX.assemble(STW, expReg, 28, r.localOffset * ( 4)));
 				}
 				else // r is a local var
 				{
 					// Since it's local, it lives below the frame pointer. 
-					pushToBuffer(DLX.assemble(STW, expReg, 28, r.localOffset * (4)));
+					pushToBuffer(DLX.assemble(STW, expReg, 28, - 8 - (r.localOffset * (4))));
 				}
 				freeRegister(expReg);
 			}
@@ -405,7 +409,7 @@ public class Compiler
 				r.isParam = false; // it is a param
 				r.isGlobal = false;
 				r.functionName = funcName;
-				r.localOffset = 2 + f.numVars++;
+				r.localOffset = f.numVars++;
 				varMap.put(name, r);
 			}
 			scanner.Next();
@@ -442,10 +446,14 @@ public class Compiler
 			procedureReturn++;
 		}
 		bufList.add(bufList.size() - a, DLX.assemble(BEQ, 0, bufList.size() - f.startInstruction + 3 + procedureReturn));
-		bufList.add(bufList.size() - a, DLX.assemble(PSH, 31, 29, 0));
-		bufList.add(bufList.size() - a, DLX.assemble(PSH, 28, 29, 0));
-		// // return to R31 after BSR.
-		// bufList.add(DLX.assemble(RET, 31));
+		bufList.add(bufList.size() - a, DLX.assemble(PSH, 31, 29, -4));
+		bufList.add(bufList.size() - a, DLX.assemble(PSH, 28, 29, -4));
+		// now after all that, initialize the frame pointer i guess or something
+		if (isProcedure)
+		bufList.add(DLX.assemble(RET, 31));
+
+		bufList.add(DLX.assemble(SUBI, 28, 30, (numofGlobalVars * 4) + (f.numParams * 4) + 4));
+		bufList.add(DLX.assemble(SUBI, 29, 30, 4 + numofGlobalVars*4));
 
 
 		return 0;
@@ -478,7 +486,10 @@ public class Compiler
 			int myExp = exp();
 			// STW that result
 			// TODO: Figure out how to properly push the current expressions to the function formal params memory.
-			bufList.add(DLX.assemble(PSH, myExp, 30, f.memBegin + (i--))); // used to be 30
+//			bufList.add(DLX.assemble(STW, myExp, 29, f.memBegin + (-4 * (i-1)))); // used to be 30
+			bufList.add(DLX.assemble(STW, myExp, 29, (-4 * (i)))); // used to be 30
+
+			i--;
 			freeRegister(myExp);
 		}
 		// okay. now we're at )
@@ -486,13 +497,11 @@ public class Compiler
 
 		// Branch to that function
 		//bufList.add(DLX.assemble(BSR, f.startInstruction +  1));
-		if (f.isProcedure)
-		{
-			bufList.add(DLX.assemble(RET, 31)); // want to skip the next JSR. 
-		}
+		// if (f.isProcedure)
+		// {
+		// 	bufList.add(DLX.assemble(RET, 31)); // want to skip the next JSR. 
+		// }
 		bufList.add(DLX.assemble(JSR, (f.startInstruction + 1) * 4));
-
-		//bufList.add(DLX.assemble(BSR, f.fp));
 
 		return 0;
 	}
@@ -503,14 +512,14 @@ public class Compiler
 		int myExp = exp();
 
 		// Register 27 is now my return register.
-		bufList.add(DLX.assemble(ADD, 27, 0, myExp));
+		//bufList.add(DLX.assemble(ADD, 27, 0, myExp));
 		freeRegister(myExp);
 		// Push the myExp register to the frame pointer
 
 		bufList.add(DLX.assemble(RET, 31));
 
 
-		return 27;
+		return myExp;
 	}
 
 	public retRelation relation()
@@ -627,11 +636,11 @@ public class Compiler
 			}
 			else if (r.isParam) // go up 
 			{
-				pushToBuffer(DLX.assemble(LDW, ret, 28, r.localOffset * (-4)));
+				pushToBuffer(DLX.assemble(LDW, ret, 28, (r.localOffset + 1) * (4)));
 			}
 			else // is a local var
 			{
-				pushToBuffer(DLX.assemble(LDW, ret, 28, r.localOffset * (4)));
+				pushToBuffer(DLX.assemble(LDW, ret, 28, -8 + (r.localOffset) * (-4)));
 			}
 
 			scanner.Next();
@@ -687,21 +696,22 @@ public class Compiler
 		}
 		if (functionMap.get(myIdent) != null)
 		{
+			// store all the registers in use 
 			functionProcedure();
 			/*
 			right before calling a function you store the current return address (r31) into memory right above the fp
 			then when you branch to the function with bsr
 			the return address register will be automatically updated to return after the bsr instruction
 			*/
-			Function f = functionMap.get(myIdent);
-			bufList.add(DLX.assemble(POP, 28, 29, 0));
-			bufList.add(DLX.assemble(POP, 31, 29, 0));
+			//Function f = functionMap.get(myIdent);
+			bufList.add(DLX.assemble(POP, 31, 29, 4));
+			bufList.add(DLX.assemble(POP, 28, 29, 4));
 			// Store the current return address (R31) into memory right above FP (R28)
 			
 			// Branch to the function with BSR
 			// bufList.add(DLX.assemble(BSR, -f.numberOfInstructions));
 			// return address will be automatically updated to return after the BSR instruction.
-			return 1;
+			return mostRecentlyUsedReg;
 		}
 		return 0;
 	}

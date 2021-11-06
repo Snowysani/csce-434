@@ -1,25 +1,11 @@
 main
-var input, myvar;
-function getsumton(n)
-var i,j;
+procedure checkforsanity()
 {
-    let i <- 0;
-	let j <- 1;
-    while j <= 3 do
-		let i <- i + j; // 1 3 6
-		let j <- j + 1; // 2 3 4
-	od;
-    return i;
+    call outputnum(5);
 };
 
+
 {
-    let input <- 3;
-    call outputnum(input);
+    call checkforsanity();
     call outputnewline();
-    
-    let myvar <- call getsumton(input);
-
-    call outputnum(myvar);
-    call outputnewline();
-
 }.
