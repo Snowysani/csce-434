@@ -3,11 +3,44 @@ package edu.tamu.csce434;
 // The DLX Virtual Machine
 
 import java.io.*;
+import java.util.concurrent.TimeUnit;
+import java.util.HashMap;
 
 // All variables and methods are realized as class variables/methods which
 // means that just one processor can be emulated at a time.
 
 public class DLX {
+
+	private static Integer mostRecentMem = null;
+	private static Integer mostRecentReg = null;
+	private static int currTop = 2499;
+	private static 
+	HashMap<String, String> colors = new HashMap<String, String>();
+	
+	private static void LoadColors() {
+		colors.put("black",  "\u001b[30m");
+		colors.put("red",    "\u001b[31m");
+		colors.put("green",  "\u001b[32m");
+		colors.put("yellow", "\u001b[33m");
+		colors.put("blue",   "\u001b[34m");
+		colors.put("magenta","\u001b[35m");
+		colors.put("cyan",   "\u001b[36m");
+		colors.put("white",  "\u001b[37m");
+		colors.put("reset",  "\u001b[0m");
+	}
+
+	private static void print(int p, int i) {
+		System.out.println(p + ": " + disassemble(i));
+	}
+	
+	private static void print1(String s) {
+		//System.out.print(s);
+		for (int i = 1; i < 10; i++) {
+			System.out.print(R[i] + ", ");
+		}
+		System.out.println();
+	}
+	
 	// processor state variables
 	static int R[] = new int [32];
 	static int PC, op, a, b, c, format; 
@@ -21,11 +54,19 @@ public class DLX {
 	}
 
 	public static void load(int program[]) {
+		LoadColors();
 		int i;
 		for (i = 0; i < program.length; i++) {
-			M[i] = program[i]; // every line of program has a line in memory.
-			if (i < 200)
-				print(i, program[i]);
+			print(i, program[i]);
+			M[i] = program[i];
+		}
+		
+		//System.out.println("DISS" + disassemble(-535887870));
+		try {
+			TimeUnit.SECONDS.sleep(1);
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
 		}
 		M[i] = -1; // set first opcode of first instruction after program
 		           // to ERR in order to detect 'fall off the edge' errors
@@ -36,10 +77,10 @@ public class DLX {
 		for (int i = 0; i < 32; i++) { R[i] = 0; };
 		PC = 0; R[30] = MemSize - 1;
 
-        BufferedReader lineReader = new BufferedReader(new InputStreamReader(System.in));
+                BufferedReader lineReader = new BufferedReader(new InputStreamReader(System.in));
 
 		try {
-
+		
 		execloop:
 		while (true) {
 			R[0] = 0;
@@ -50,24 +91,16 @@ public class DLX {
 				origc = c; // used for RET
 				c = R[c];  // dirty trick
 			}
-			System.out.print("Current instruction number: " + PC);
-			for (int i = 28; i <= 31; i++)
-			{
-				System.out.print(" Reg: " + i  + " " + R[i]);
-			}
-			//if (PC >= 9)
-			//System.out.print("Disassemble of R31: " + disassemble(R[31]));
-			
-			System.out.println("");
 			switch (op) {
 				case ADD:
 				case ADDI:
 					R[a] = R[b] + c;
+					mostRecentReg = a;
 					break;
 				case SUB:
 				case SUBI:
 					R[a] = R[b] - c;
-					//System.out.println("SUB called. New value of register: " + R[a]);
+					mostRecentReg = a;
 					break;
 				case CMP:
 				case CMPI:
@@ -79,30 +112,37 @@ public class DLX {
 				case MUL:
 				case MULI:
 					R[a] = R[b] * c;
+					mostRecentReg = a;
 					break;
 				case DIV:
 				case DIVI:
 					R[a] = R[b] / c;
+					mostRecentReg = a;
 					break;
 				case MOD:
 				case MODI:
 					R[a] = R[b] % c;
+					mostRecentReg = a;
 					break;
 				case OR:
 				case ORI:
 					R[a] = R[b] | c;
+					mostRecentReg = a;
 					break;
 				case AND:
 				case ANDI:
 					R[a] = R[b] & c;
+					mostRecentReg = a;
 					break;
 				case BIC:
 				case BICI:
 					R[a] = R[b] & ~c;
+					mostRecentReg = a;
 					break;
 				case XOR:
 				case XORI:
 					R[a] = R[b] ^ c;
+					mostRecentReg = a;
 					break;
 				// Shifts: - a shift by a positive number means a left shift
 				//         - if c > 31 or c < -31 an error is generated
@@ -140,11 +180,15 @@ public class DLX {
 					break;
 				case LDW:
 				case LDX: // remember: c == R[origc] because of F2 format
-					R[a] = M[(R[b]+c) / 4]; 
+					R[a] = M[(R[b]+c) / 4];
+					mostRecentReg = a;
+					// System.out.println("PC: " + PC + " | r28: " + R[28] + " | r29: " + R[29] + " | ");
+					// print1(disassemble(M[PC]));
 					break;
 				case STW:
 				case STX: // remember: c == R[origc] because of F2 format
 					M[(R[b]+c) / 4] = R[a]; 
+					mostRecentMem = (R[b]+c) / 4;
 					break;
 				case POP:
 					R[a] = M[R[b] / 4];
@@ -153,18 +197,20 @@ public class DLX {
 				case PSH:
 					R[b] = R[b] + c;
 					M[R[b] / 4] = R[a];
+					mostRecentMem = R[b] / 4;
 					break;
 				case BEQ:
 					if (R[a] == 0) nextPC = PC + c;
+					//System.out.println("pc:" + PC + " | nextPc:" + nextPC);
 					if ((nextPC < 0) || (nextPC > MemSize/4)) {
 						System.out.println(4*nextPC + " is no address in memory (0.." 
 							+ MemSize + ").");
 						bug(40); 
 					}
-					//System.out.println("BEQ Current PC: " + PC + ", NextPC: " + nextPC+ ", PC Value: " + R[a]);
 					break;
 				case BNE:
 					if (R[a] != 0) nextPC = PC + c;
+					//System.out.println("pc:" + PC + " | nextPc:" + nextPC);
 					if ((nextPC < 0) || (nextPC > MemSize/4)) {
 						System.out.println(4*nextPC + " is no address in memory (0.." 
 							+ MemSize + ").");
@@ -173,6 +219,7 @@ public class DLX {
 					break;
 				case BLT:
 					if (R[a] < 0) nextPC = PC + c;
+					//System.out.println("pc:" + PC + " | nextPc:" + nextPC);
 					if ((nextPC < 0) || (nextPC > MemSize/4)) {
 						System.out.println(4*nextPC + " is no address in memory (0.." 
 							+ MemSize + ").");
@@ -181,15 +228,16 @@ public class DLX {
 					break;
 				case BGE:
 					if (R[a] >= 0) nextPC = PC + c;
+					//System.out.println("pc:" + PC + " | nextPc:" + nextPC);
 					if ((nextPC < 0) || (nextPC > MemSize/4)) {
 						System.out.println(4*nextPC + " is no address in memory (0.." 
 							+ MemSize + ").");
 						bug(43); 
 					}
-					//System.out.println("BGE Current PC: " + PC + ", NextPC: " + nextPC+ ", PC Value: " + R[a]);
 					break;
 				case BLE:
 					if (R[a] <= 0) nextPC = PC + c;
+					//System.out.println("pc:" + PC + " | nextPc:" + nextPC);
 					if ((nextPC < 0) || (nextPC > MemSize/4)) {
 						System.out.println(4*nextPC + " is no address in memory (0.." 
 							+ MemSize + ").");
@@ -198,6 +246,7 @@ public class DLX {
 					break;
 				case BGT:
 					if (R[a] > 0) nextPC = PC + c;
+					//System.out.println("pc:" + PC + " | nextPc:" + nextPC);
 					if ((nextPC < 0) || (nextPC > MemSize/4)) {
 						System.out.println(4*nextPC + " is no address in memory (0.." 
 							+ MemSize + ").");
@@ -210,7 +259,15 @@ public class DLX {
 					break;
 				case JSR:
 					R[31] = (PC+1) * 4;
+					mostRecentReg = 31;
 					nextPC = c / 4;
+					// try {
+					// 	System.out.println("pc: " + PC + " | nextPC: " + nextPC);
+					// 	TimeUnit.SECONDS.sleep(1);
+					// } catch (InterruptedException e) {
+					// 	// TODO Auto-generated catch block
+					// 	e.printStackTrace();
+					// }
 					break;
 				case RET: 
 					if (origc == 0) break execloop; // remember: c==R[origc]
@@ -220,14 +277,22 @@ public class DLX {
 						bug(49); 
 					}
 					nextPC = c / 4; 
+					// try {
+					// 	System.out.println("pc: " + PC + " | nextPC: " + nextPC);
+					// 	TimeUnit.SECONDS.sleep(1);
+					// } catch (InterruptedException e) {
+					// 	// TODO Auto-generated catch block
+					// 	e.printStackTrace();
+					// }
 					break;
 				case RDI:
 					System.out.print("?: ");
 					String line = lineReader.readLine();
 					R[a] = Integer.parseInt(line);
+					mostRecentReg = a;
 					break;
 				case WRD:
-					System.out.print(R[b] + "  ");
+					System.out.println(R[b]);
 					break;
 				case WRH:
 					System.out.print("0x" + Integer.toHexString(R[b]) + "  ");
@@ -243,18 +308,76 @@ public class DLX {
 					System.out.println("DLX.execute: Unknown opcode encountered!");
 					bug(1);
 			}
+			// new debug section
+			{	
+				PrintInstruction();
+				PrintRegisters();
+				currTop = PrintMemory(currTop);
+				mostRecentReg = null;
+				mostRecentMem = null;
+			}
 			PC = nextPC;
-			//System.out.println(disassemble(M[PC]));
 		}
 
 		}
 		catch (java.lang.ArrayIndexOutOfBoundsException e ) {
-		  System.out.println( "failed at " + PC*4 + ",   "  + disassemble( M[PC] ) );
+			System.out.println(e);
+		  	System.out.println( "failed at " + PC*4 + ",   "  + disassemble( M[PC] ) );
 		}
-		//System.out.println("start register print");
 
-		//for (int i = 0; i < 32; i++) { System.out.println(" " + i + ": " + R[i]); };
-		//System.out.println("end register print");
+	}
+
+	private static void PrintInstruction() {
+		System.out.printf("PC:%-3s | %-14s | ", PC, disassemble(M[PC]));
+	}
+
+	private static void PrintRegisters() {
+		System.out.println();
+		String colorCode;
+		for (int i = 1; i < 26; i++) {
+			colorCode = (mostRecentReg != null && mostRecentReg == i) ? colors.get("red") : colors.get("reset");
+			System.out.printf("%s%d%s|", colorCode, R[i], colors.get("reset"));
+		}
+		System.out.print(R[26]);
+		System.out.printf("%s r27: %-3s %s|%s r28: %-5s %s|%s M[%s]: %-5s %s|%s r29: %-5s %s|%s r31: %-5s %s| " ,
+			colors.get("magenta"), R[27], colors.get("reset"), 
+			colors.get("blue"),   R[28]/4, colors.get("reset"), 
+			colors.get("cyan"),   R[28]/4, M[R[28]/4], colors.get("reset"),
+			colors.get("yellow"), R[29]/4,   colors.get("reset"),
+			colors.get("green"),  R[31]/4,   colors.get("reset"));
+		System.out.println();
+	}
+
+	private static int PrintMemory(int t) {
+		int n = 40;
+		int top = t;
+		int bottom = top - n;
+		if (R[28]/4 > top || R[29]/4 > top) {
+			top += 20;
+			bottom += 20;
+		} else if (R[28]/4 < bottom || R[29]/4 < bottom) {
+			bottom -= 20;
+			top -= 20;
+		}
+		String colorCode1 = colors.get("reset");
+		String colorCode2 = colors.get("reset");
+		for (int i = top; i >= bottom; i--) {
+			if (R[28]/4 == i){
+				colorCode1 = colors.get("blue");
+				colorCode2 = (R[29]/4 == i) ? colors.get("yellow") : colors.get("blue");
+			}
+			else if (R[29]/4 == i) {
+				colorCode1 = colors.get("yellow");
+				colorCode2 = colorCode1;
+			}
+			System.out.printf("%sMem[%d]: %s%d%s", colorCode1, i, colorCode2, M[i], colors.get("reset"));
+			if (mostRecentMem != null && mostRecentMem == i)
+				System.out.printf("%s*%s", colors.get("red"), colors.get("reset"));
+			System.out.println();
+			colorCode1 = colors.get("reset");
+			colorCode2 = colors.get("reset");
+		}
+		return top;
 	}
 
 	// Mnemonic-to-Opcode mapping
@@ -401,16 +524,16 @@ public class DLX {
 		switch (op) {
 			
 			case WRL:
-				return line += "\n";
+				return line;
 			case BSR:
 			case RET:
 			case JSR:
-				return line += c + "\n";
+				return line += c;
 			case RDI:
-				return line += a + "\n";
+				return line += a;
 			case WRD:
 			case WRH:
-				return line += b + "\n";
+				return line += b;
 			case CHKI:
 			case BEQ:
 			case BNE:
@@ -419,7 +542,7 @@ public class DLX {
 			case BLE:
 			case BGT:
 			case CHK:
-				return line += a + " " + c + "\n";
+				return line += a + " " + c;
 			case ADDI:
 			case SUBI:
 			case MULI:
@@ -450,9 +573,9 @@ public class DLX {
 			case ASH:
 			case LDX:
 			case STX:
-				return line += a + " " + b + " " + c + "\n";
+				return line += a + " " + b + " " + c;
 			default:
-				return line += "\n";
+				return line;
 			}
 	}
 	
@@ -593,8 +716,5 @@ public class DLX {
 		System.exit(n);
 	}
 	
-	private static void print(int p, int i) {
-        System.out.print(p + ": " + disassemble(i));
-    }
 
 }

@@ -1,17 +1,22 @@
 main
 var input, myvar;
-
-function gettwosum(n)
-var i,k;
+function getsumton(n)
 {
-    let i <- call inputnum();
-    let k <- i + n;
-    return k;
+	if n == 1 then
+		return 1;
+	fi;
+	return call getsumton2(5);
 };
-
+function getsumton2(n)
 {
-    let input <- call inputnum();
-    let myvar <- call gettwosum(input);
+	return n;
+};
+{
+    let input <- 35
+    let myvar <- call getsumton(input);
+    //call outputnewline();
+    call outputnum(input);
+    //call outputnewline();
     call outputnum(myvar);
-    call outputnewline();
+    //call outputnewline();
 }.
