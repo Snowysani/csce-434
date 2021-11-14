@@ -388,6 +388,7 @@ public class Compiler
 				r.functionName = funcName;
 				r.localOffset = f.numParams++;
 				varMap.put(name, r);
+				
 			}
 			scanner.Next();
 			token = scanner.sym;
@@ -397,7 +398,8 @@ public class Compiler
 		f.fp = getNextMemLocation();
 		f.startInstruction = bufList.size();
 
-		// store the current return address into memory right above the fp 
+		// Decrement the stack pointer 
+
 
 
 		// set up the local variables. 
@@ -422,6 +424,8 @@ public class Compiler
 		{
 			scanner.Next();
 		}
+		// First decrement the stack pointer again 
+
 		int a = 0;
 		if (scanner.sym == scanner.expressionMap.get("{"))
 		{
@@ -443,10 +447,12 @@ public class Compiler
 		if (f.isProcedure) {
 			procedureReturn++;
 		}
+		// store the current return address into memory right above the fp 
+
 		bufList.add(bufList.size() - a, DLX.assemble(PSH, BA, SP, -4));
 		bufList.add(bufList.size() - a, DLX.assemble(PSH, FP, SP, -4));
-		bufList.add(bufList.size() - a, DLX.assemble(ADD, FP, SP, 0));
-		bufList.add(bufList.size() - a, DLX.assemble(SUBI, SP, SP, -4 * (f.numVars + 1)));
+		// bufList.add(bufList.size() - a, DLX.assemble(ADD, FP, SP, 0));
+		// bufList.add(bufList.size() - a, DLX.assemble(SUBI, SP, SP, -4 * (f.numVars + 1)));
 		
 		if (isProcedure)
 		bufList.add(DLX.assemble(RET, 31));
@@ -474,7 +480,7 @@ public class Compiler
 		int paramBeginLocation = f.memBegin;
 		// populate those
 		scanner.Next(); 
-		int i = f.numParams + 1;
+		int i = f.numParams;
 		while (scanner.sym != scanner.expressionMap.get(")"))
 		{
 			if (scanner.sym == scanner.expressionMap.get(","))
@@ -484,7 +490,7 @@ public class Compiler
 			}
 			int myExp = exp();
 			// PSH that result in the formal params location.
-			bufList.add(DLX.assemble(PSH, myExp, SP, (-4 * (i))));
+			bufList.add(DLX.assemble(STW, myExp, SP, (4 * (i))));
 			i--;
 			freeRegister(myExp);
 		}
@@ -647,7 +653,7 @@ public class Compiler
 		else if (scanner.sym == scanner.expressionMap.get("call"))
 		{
 			ret = funcCall();
-			if (ret != 0) freeRegister( ret );
+			if (ret != 0 || (ret != 27)) freeRegister( ret );
 			if (ret == 0) return mostRecentlyUsedReg;
 		}
 		else
@@ -682,16 +688,15 @@ public class Compiler
 		}
 		if (myIdent.equals("outputnewline"))
 		{
-			pushToBuffer(DLX.assemble(53)); // write new line opcode
+			pushToBuffer(DLX.assemble(53)); 
 		}
 		if (functionMap.get(myIdent) != null)
 		{
-			// store all the registers in use 
+			// TODO: store all the registers in use 
 			functionPrologue();
 
 			bufList.add(DLX.assemble(POP, 31, 29, 4));
 			bufList.add(DLX.assemble(POP, 28, 29, 4));
-			// Store the current return address (R31) into memory right above FP (R28)
 			
 			return 27;
 		}

@@ -1,22 +1,12 @@
 main
 var input, myvar;
-function getsumton(n)
-{
-	if n == 1 then
-		return 1;
-	fi;
-	return call getsumton2(5);
-};
 function getsumton2(n)
 {
 	return n;
 };
 {
     let input <- 35
-    let myvar <- call getsumton(input);
-    //call outputnewline();
+    let myvar <- call getsumton2(5);
     call outputnum(input);
-    //call outputnewline();
     call outputnum(myvar);
-    //call outputnewline();
 }.
