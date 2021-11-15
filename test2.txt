@@ -1,12 +1,24 @@
 main
 var input, myvar;
-function getsumton2(n)
+function fibonacci(n)
 {
-	return n;
+	if n == 1 then
+		return 1;
+	fi;
+	
+	if n == 0 then
+		return 0;
+	fi;
+	
+    return call fibonacci(n-1) + call fibonacci(n-2);
 };
+
 {
-    let input <- 35
-    let myvar <- call getsumton2(5);
+    let input <- call inputnum();
+    let myvar <- call fibonacci(input);
+    call outputnewline();
     call outputnum(input);
+    call outputnewline();
     call outputnum(myvar);
+    call outputnewline();
 }.

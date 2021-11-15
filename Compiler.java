@@ -364,6 +364,8 @@ public class Compiler
 		scanner.Next();
 		String funcName = scanner.Id2String(scanner.id);
 		scanner.Next();
+		String name2 = scanner.Id2String(scanner.id);
+
 		token = scanner.sym;
 
 		int memBeginLocation = memTracker;
@@ -442,20 +444,14 @@ public class Compiler
 		f.numberOfInstructions = a;
 		f.memBegin = memBeginLocation;
 
-		// If it's a procedure, make a mark to return later.
-		int procedureReturn = 0;
-		if (f.isProcedure) {
-			procedureReturn++;
-		}
 		// store the current return address into memory right above the fp 
 
 		bufList.add(bufList.size() - a, DLX.assemble(PSH, BA, SP, -4));
 		bufList.add(bufList.size() - a, DLX.assemble(PSH, FP, SP, -4));
-		// bufList.add(bufList.size() - a, DLX.assemble(ADD, FP, SP, 0));
-		// bufList.add(bufList.size() - a, DLX.assemble(SUBI, SP, SP, -4 * (f.numVars + 1)));
+		bufList.add(bufList.size() - a, DLX.assemble(ADDI, FP, SP, 0));
+		if (f.numVars > 0) bufList.add(bufList.size() - a, DLX.assemble(SUBI, SP, SP, 4 * f.numVars));
 		
-		if (isProcedure)
-		bufList.add(DLX.assemble(RET, 31));
+		if (isProcedure) bufList.add(DLX.assemble(RET, 31));
 
 		// bufList.add(DLX.assemble(SUBI, 28, 30, (numofGlobalVars * 4) + (f.numParams * 4) + 4));
 		// bufList.add(DLX.assemble(SUBI, 29, 30, 4 + numofGlobalVars*4));
@@ -474,13 +470,13 @@ public class Compiler
 		}
 		scanner.Next();
 
-		// load the current formal input params to their respective mems. 
+		// Save the current registers. 
+		ArrayList<Integer> usedRegisters = PushUsedRegisters();
 
-		
-		int paramBeginLocation = f.memBegin;
+		// load the current formal input params to their respective mems. 
 		// populate those
 		scanner.Next(); 
-		int i = f.numParams;
+		int i = f.numParams + 1;
 		while (scanner.sym != scanner.expressionMap.get(")"))
 		{
 			if (scanner.sym == scanner.expressionMap.get(","))
@@ -490,7 +486,7 @@ public class Compiler
 			}
 			int myExp = exp();
 			// PSH that result in the formal params location.
-			bufList.add(DLX.assemble(STW, myExp, SP, (4 * (i))));
+			bufList.add(DLX.assemble(PSH, myExp, SP, (4 * (i))));
 			i--;
 			freeRegister(myExp);
 		}
@@ -500,7 +496,55 @@ public class Compiler
 		// Branch to that function
 		bufList.add(DLX.assemble(JSR, (f.startInstruction + 1) * 4));
 
-		return 0;
+		// function epilogue
+		// bufList.add(DLX.assemble(POP, 31, 29, 4));
+		// bufList.add(DLX.assemble(POP, 28, 29, 4));
+		int returnReg = 0;
+		if (!f.isProcedure) {
+			returnReg = getNextReg();
+			bufList.add(DLX.assemble(POP, returnReg, SP, 4));
+		}
+		if (f.numVars > 0)
+		{
+			// move the stack pointer up by however many local variables you have
+			bufList.add(DLX.assemble(ADDI, SP, SP, 4 * f.numVars));;
+		}
+		// set the frame pointer 
+		bufList.add(DLX.assemble(POP, FP, SP, 4));
+		// set the return address 
+		bufList.add(DLX.assemble(POP, BA, SP, 4));
+		// set the stack pointer back based on parameters
+		bufList.add(DLX.assemble(ADDI, SP, SP, 4 * f.numParams));
+
+		// POP the saved registers.
+		PopSavedRegisters(usedRegisters);
+		return returnReg;
+	}
+
+	private ArrayList<Integer> PushUsedRegisters() {
+		ArrayList<Integer> myRegs = new ArrayList<Integer>();
+		for (int i = 1; i < 28; i++)
+		{
+			if (R[i] == 1)
+			{
+				// Store it 
+				bufList.add(DLX.assemble(PSH, i, 29, -4));
+				// Free it 
+				freeRegister(i);
+				// Add it to the list 
+				myRegs.add(i);
+			}
+		}
+		return myRegs;
+	}
+
+	private void PopSavedRegisters(ArrayList<Integer> used) {
+		for (int i = 0; i < used.size(); i++){
+			// POP it into the next free register
+			bufList.add(DLX.assemble(POP, getNextReg(), 29, 4));			
+			// Remote it from the list (maybe not needed)
+			used.remove(i);
+		}
 	}
 
 	public int returnStatement()
@@ -508,14 +552,11 @@ public class Compiler
 		scanner.Next();
 		int myExp = exp();
 
-		// Register 27 is now my return register.
-		bufList.add(DLX.assemble(ADD, 27, 0, myExp));
-		freeRegister(myExp);
-		// Push the myExp register to the frame pointer
+		bufList.add(DLX.assemble(PSH, myExp, SP, -4));
 
 		bufList.add(DLX.assemble(RET, 31));
 
-		return 27;
+		return myExp;
 	}
 
 	public retRelation relation()
@@ -632,7 +673,7 @@ public class Compiler
 			}
 			else if (r.isParam) // go up 
 			{
-				pushToBuffer(DLX.assemble(LDW, ret, 28, (r.localOffset + 1) * (4)));
+				pushToBuffer(DLX.assemble(LDW, ret, 28, (r.localOffset + 2) * (4)));
 			}
 			else // is a local var
 			{
@@ -692,13 +733,8 @@ public class Compiler
 		}
 		if (functionMap.get(myIdent) != null)
 		{
-			// TODO: store all the registers in use 
-			functionPrologue();
-
-			bufList.add(DLX.assemble(POP, 31, 29, 4));
-			bufList.add(DLX.assemble(POP, 28, 29, 4));
-			
-			return 27;
+			int a = functionPrologue();	
+			return a;
 		}
 		return 0;
 	}
