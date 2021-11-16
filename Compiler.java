@@ -201,12 +201,7 @@ public class Compiler
 
 			if (scanner.sym == scanner.expressionMap.get("return"))
 			{
-				// do return stuff
-				//scanner.Next();
 				returnStatement();
-				//scanner.Next();
-				// If needed, return here, and pass the current sym to the funcProcedure.
-				// If current sym == return, continue. Or something/
 				continue; 
 			}
 
@@ -268,12 +263,12 @@ public class Compiler
 				else if (r.isParam)
 				{
 					// Since it's a parameter, we have to go up the stack via the frame pointer. 
-					pushToBuffer(DLX.assemble(STW, expReg, 28, r.localOffset * ( 4)));
+					pushToBuffer(DLX.assemble(STW, expReg, FP, r.localOffset * ( 4)));
 				}
 				else // r is a local var
 				{
 					// Since it's local, it lives below the frame pointer. 
-					pushToBuffer(DLX.assemble(STW, expReg, 28, - 8 - (r.localOffset * (4))));
+					pushToBuffer(DLX.assemble(STW, expReg, FP, - 8 - (r.localOffset * (4))));
 				}
 				freeRegister(expReg);
 			}
@@ -368,8 +363,6 @@ public class Compiler
 
 		token = scanner.sym;
 
-		int memBeginLocation = memTracker;
-
 		Function f = new Function();
 		functionMap.put(funcName, f);
 		f = functionMap.get(funcName);
@@ -384,7 +377,7 @@ public class Compiler
 			if (token == 61)
 			{
 				String name = scanner.Id2String(scanner.id);
-				Result r = new Result(name, -1, getNextMemLocation());
+				Result r = new Result(name, -1, -1);
 				r.isParam = true; // it is a param
 				r.isGlobal = false;
 				r.functionName = funcName;
@@ -396,8 +389,6 @@ public class Compiler
 			token = scanner.sym;
 		}
 
-		f.returnAddress = getNextMemLocation();
-		f.fp = getNextMemLocation();
 		f.startInstruction = bufList.size();
 
 		// Decrement the stack pointer 
@@ -410,7 +401,7 @@ public class Compiler
 			if (token == 61)
 			{
 				String name = scanner.Id2String(scanner.id);
-				Result r = new Result(name, -1, getNextMemLocation());
+				Result r = new Result(name, -1, -1);
 				r.isParam = false; // it is a param
 				r.isGlobal = false;
 				r.functionName = funcName;
@@ -434,7 +425,6 @@ public class Compiler
 			// do the func body
 			int stat = statSequence();
 			a += stat;
-			//a++;
 		}
 
 		if (scanner.sym != scanner.expressionMap.get("}"))
@@ -442,11 +432,10 @@ public class Compiler
 			error();
 		}
 		f.numberOfInstructions = a;
-		f.memBegin = memBeginLocation;
 
 		// store the current return address into memory right above the fp 
 
-		bufList.add(bufList.size() - a, DLX.assemble(PSH, BA, SP, -4));
+		bufList.add(bufList.size() - a, DLX.assemble(PSH, BA, SP, 0));
 		bufList.add(bufList.size() - a, DLX.assemble(PSH, FP, SP, -4));
 		bufList.add(bufList.size() - a, DLX.assemble(ADDI, FP, SP, 0));
 		if (f.numVars > 0) bufList.add(bufList.size() - a, DLX.assemble(SUBI, SP, SP, 4 * f.numVars));
@@ -476,7 +465,7 @@ public class Compiler
 		// load the current formal input params to their respective mems. 
 		// populate those
 		scanner.Next(); 
-		int i = f.numParams + 1;
+		int i = f.numParams;
 		while (scanner.sym != scanner.expressionMap.get(")"))
 		{
 			if (scanner.sym == scanner.expressionMap.get(","))
@@ -490,6 +479,8 @@ public class Compiler
 			i--;
 			freeRegister(myExp);
 		}
+		// Move the SP down that number of params.
+		bufList.add(DLX.assemble(ADDI, SP, SP, -4 * f.numParams));
 		// okay. now we're at )
 		scanner.Next();
 		
@@ -514,7 +505,7 @@ public class Compiler
 		// set the return address 
 		bufList.add(DLX.assemble(POP, BA, SP, 4));
 		// set the stack pointer back based on parameters
-		bufList.add(DLX.assemble(ADDI, SP, SP, 4 * f.numParams));
+		bufList.add(DLX.assemble(ADDI, SP, SP, 4 * (f.numParams)));
 
 		// POP the saved registers.
 		PopSavedRegisters(usedRegisters);
@@ -540,10 +531,13 @@ public class Compiler
 
 	private void PopSavedRegisters(ArrayList<Integer> used) {
 		for (int i = 0; i < used.size(); i++){
+			if(used.get(i) == null) continue;
 			// POP it into the next free register
-			bufList.add(DLX.assemble(POP, getNextReg(), 29, 4));			
+			bufList.add(DLX.assemble(POP, used.get(i), 29, 4));			
 			// Remote it from the list (maybe not needed)
 			used.remove(i);
+			// free it maybe?
+			//freeRegister(a);
 		}
 	}
 
@@ -656,10 +650,10 @@ public class Compiler
 		{	// var identity
 			if ( varMap.get(scanner.Id2String(scanner.id)) == null)  // if we do not have that variable.
 			{
-				//TODO: relook at this code.
+				//TODO: This adds support for global/local scope of variables.
 				// // add it to the reg map
 				// String name = scanner.Id2String(scanner.id);
-				// Result r = new Result(name, -1, getNextMemLocation());
+				// Result r = new Result(name, -1, -1);
 				// varMap.put(name, r);
 			}
 		
@@ -673,11 +667,11 @@ public class Compiler
 			}
 			else if (r.isParam) // go up 
 			{
-				pushToBuffer(DLX.assemble(LDW, ret, 28, (r.localOffset + 2) * (4)));
+				pushToBuffer(DLX.assemble(LDW, ret, FP, (r.localOffset + 2) * (4)));
 			}
 			else // is a local var
 			{
-				pushToBuffer(DLX.assemble(LDW, ret, 28, -8 + (r.localOffset) * (-4)));
+				pushToBuffer(DLX.assemble(LDW, ret, FP, -8 + (r.localOffset) * (-4)));
 			}
 
 			scanner.Next();
@@ -776,7 +770,6 @@ class Result {
 class Function {
 	int numberOfInstructions;
 	String name;
-	int memBegin;
 	int returnAddress;
 	int fp;
 	int startInstruction;

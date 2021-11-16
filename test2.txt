@@ -1,21 +1,16 @@
 main
 var input, myvar;
-function fibonacci(n)
+function getsumton(n)
 {
 	if n == 1 then
 		return 1;
 	fi;
-	
-	if n == 0 then
-		return 0;
-	fi;
-	
-    return call fibonacci(n-1) + call fibonacci(n-2);
+	return call getsumton(n-1) + n;
 };
 
 {
     let input <- call inputnum();
-    let myvar <- call fibonacci(input);
+    let myvar <- call getsumton(input);
     call outputnewline();
     call outputnum(input);
     call outputnewline();
