@@ -1,4 +1,3 @@
-
 package edu.tamu.csce434;
 import java.util.List;
 import java.util.ArrayList; 
@@ -99,7 +98,7 @@ public class Compiler
 		bufList.add(0, DLX.assemble(BEQ, 0, bufList.size()+1));
 		
 		// now allocate space for the fp/sp
-		bufList.add(DLX.assemble(SUBI, FP, 30, (numofGlobalVars) * 4));
+		bufList.add(DLX.assemble(SUBI, FP, 30, (numofGlobalVars + 2) * 4));
 		bufList.add(DLX.assemble(ADDI, SP, FP, 4));
 
 		statSequence();
@@ -489,29 +488,29 @@ public class Compiler
 		// function epilogue
 
 		int returnReg = 0;
-
+		// POP the saved registers.
+		PopSavedRegisters(usedRegisters);
 		if (f.numVars > 0)
 		{
 			// move the stack pointer up by however many local variables you have
 			bufList.add(DLX.assemble(ADDI, SP, SP, 4 * f.numVars));;
 		}
-		// set the stack pointer back based on parameters
-		bufList.add(DLX.assemble(ADDI, SP, SP, 4 * (f.numParams)));
-		bufList.add(DLX.assemble(POP, SP, FP, 4));
-
-		// set the return address 
-		bufList.add(DLX.assemble(POP, BA, SP, 0));
-
-		// set the frame pointer 
-		bufList.add(DLX.assemble(ADDI, SP, SP, 4 * f.numParams));
-
-		// POP the saved registers.
-		PopSavedRegisters(usedRegisters);
 		// copy the value of 27 to a new register.
 		if (!f.isProcedure) {
 			returnReg = getNextReg();
 			bufList.add(DLX.assemble(ADD, returnReg, 27, 0));
 		}
+		//bufList.add(DLX.assemble(ADDI, SP, SP, 4 * (f.numParams)));
+		bufList.add(DLX.assemble(ADD, SP, FP, 0));
+
+		bufList.add(DLX.assemble(POP, FP, SP, 4));
+
+		// set the return address 
+		bufList.add(DLX.assemble(POP, BA, SP, 4));
+
+		// set the frame pointer 
+		bufList.add(DLX.assemble(ADDI, SP, SP, 4 * f.numParams));
+
 		//bufList.add(DLX.assemble(RET, 31));
 
 		// return that new register
@@ -548,7 +547,6 @@ public class Compiler
 	{
 		scanner.Next();
 		int myExp = exp();
-		//bufList.add(DLX.assemble(ADDI, FP, SP, 8)); // as we're going up the mem stack to recurse, the sp and fp get moved. 
 		bufList.add(DLX.assemble(ADD, 27, myExp, 0));
 		freeRegister(myExp);
 
@@ -729,7 +727,6 @@ public class Compiler
 		if (functionMap.get(myIdent) != null)
 		{
 			int returnReg = functionPrologue();	
-			//freeRegister(returnReg);
 			return returnReg;
 		}
 		return 0;
