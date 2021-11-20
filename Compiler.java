@@ -1,3 +1,4 @@
+
 package edu.tamu.csce434;
 import java.util.List;
 import java.util.ArrayList; 
@@ -98,8 +99,8 @@ public class Compiler
 		bufList.add(0, DLX.assemble(BEQ, 0, bufList.size()+1));
 		
 		// now allocate space for the fp/sp
-		bufList.add(DLX.assemble(SUBI, FP, 30, numofGlobalVars * 4));
-		bufList.add(DLX.assemble(SUBI, SP, 30, (numofGlobalVars + 1) * 4));
+		bufList.add(DLX.assemble(SUBI, FP, 30, (numofGlobalVars) * 4));
+		bufList.add(DLX.assemble(ADDI, SP, FP, 4));
 
 		statSequence();
 
@@ -201,6 +202,7 @@ public class Compiler
 
 			if (scanner.sym == scanner.expressionMap.get("return"))
 			{
+				//return bufList.size() - 1;
 				returnStatement();
 				continue; 
 			}
@@ -263,12 +265,12 @@ public class Compiler
 				else if (r.isParam)
 				{
 					// Since it's a parameter, we have to go up the stack via the frame pointer. 
-					pushToBuffer(DLX.assemble(STW, expReg, FP, r.localOffset * ( 4)));
+					pushToBuffer(DLX.assemble(STW, expReg, FP, r.parameterNumber * ( 4)));
 				}
 				else // r is a local var
 				{
 					// Since it's local, it lives below the frame pointer. 
-					pushToBuffer(DLX.assemble(STW, expReg, FP, - 8 - (r.localOffset * (4))));
+					pushToBuffer(DLX.assemble(STW, expReg, FP, (r.parameterNumber + 1) * -4));
 				}
 				freeRegister(expReg);
 			}
@@ -359,7 +361,6 @@ public class Compiler
 		scanner.Next();
 		String funcName = scanner.Id2String(scanner.id);
 		scanner.Next();
-		String name2 = scanner.Id2String(scanner.id);
 
 		token = scanner.sym;
 
@@ -381,7 +382,7 @@ public class Compiler
 				r.isParam = true; // it is a param
 				r.isGlobal = false;
 				r.functionName = funcName;
-				r.localOffset = f.numParams++;
+				r.parameterNumber = f.numParams++;
 				varMap.put(name, r);
 				
 			}
@@ -390,10 +391,6 @@ public class Compiler
 		}
 
 		f.startInstruction = bufList.size();
-
-		// Decrement the stack pointer 
-
-
 
 		// set up the local variables. 
 		while (token != 70 && token != scanner.expressionMap.get("{"))
@@ -405,7 +402,7 @@ public class Compiler
 				r.isParam = false; // it is a param
 				r.isGlobal = false;
 				r.functionName = funcName;
-				r.localOffset = f.numVars++;
+				r.parameterNumber = f.numVars++;
 				varMap.put(name, r);
 			}
 			scanner.Next();
@@ -418,7 +415,9 @@ public class Compiler
 			scanner.Next();
 		}
 		// First decrement the stack pointer again 
-
+		bufList.add(DLX.assemble(PSH, BA, SP, -4));
+		bufList.add(DLX.assemble(PSH, FP, SP, -4));
+		bufList.add(DLX.assemble(ADDI, FP, SP, 0));
 		int a = 0;
 		if (scanner.sym == scanner.expressionMap.get("{"))
 		{
@@ -433,17 +432,13 @@ public class Compiler
 		}
 		f.numberOfInstructions = a;
 
-		// store the current return address into memory right above the fp 
+		if (f.numVars > 0) 
+		{
+			bufList.add(bufList.size() - a, DLX.assemble(SUBI, SP, SP, 4 * (f.numVars)));
+			//bufList.add(bufList.size() - a, DLX.assemble(ADDI, FP, SP, 0));
+		}	
 
-		bufList.add(bufList.size() - a, DLX.assemble(PSH, BA, SP, 0));
-		bufList.add(bufList.size() - a, DLX.assemble(PSH, FP, SP, -4));
-		bufList.add(bufList.size() - a, DLX.assemble(ADDI, FP, SP, 0));
-		if (f.numVars > 0) bufList.add(bufList.size() - a, DLX.assemble(SUBI, SP, SP, 4 * f.numVars));
-		
 		if (isProcedure) bufList.add(DLX.assemble(RET, 31));
-
-		// bufList.add(DLX.assemble(SUBI, 28, 30, (numofGlobalVars * 4) + (f.numParams * 4) + 4));
-		// bufList.add(DLX.assemble(SUBI, 29, 30, 4 + numofGlobalVars*4));
 
 		return 0;
 	}
@@ -461,11 +456,14 @@ public class Compiler
 
 		// Save the current registers. 
 		ArrayList<Integer> usedRegisters = PushUsedRegisters();
+		//bufList.add(DLX.assemble(ADDI, SP, SP, -4 * (f.numParams + f.numVars)));
 
 		// load the current formal input params to their respective mems. 
 		// populate those
 		scanner.Next(); 
 		int i = f.numParams;
+		//
+		//if (i > 0) bufList.add(DLX.assemble(ADDI, SP, SP, 4));
 		while (scanner.sym != scanner.expressionMap.get(")"))
 		{
 			if (scanner.sym == scanner.expressionMap.get(","))
@@ -475,12 +473,13 @@ public class Compiler
 			}
 			int myExp = exp();
 			// PSH that result in the formal params location.
-			bufList.add(DLX.assemble(PSH, myExp, SP, (4 * (i))));
+			bufList.add(DLX.assemble(PSH, myExp, SP, -4));
+			//bufList.add(DLX.assemble(ADDI, SP, SP, -4));
 			i--;
 			freeRegister(myExp);
 		}
 		// Move the SP down that number of params.
-		bufList.add(DLX.assemble(ADDI, SP, SP, -4 * f.numParams));
+		//bufList.add(DLX.assemble(ADDI, SP, SP, -4));
 		// okay. now we're at )
 		scanner.Next();
 		
@@ -488,33 +487,40 @@ public class Compiler
 		bufList.add(DLX.assemble(JSR, (f.startInstruction + 1) * 4));
 
 		// function epilogue
-		// bufList.add(DLX.assemble(POP, 31, 29, 4));
-		// bufList.add(DLX.assemble(POP, 28, 29, 4));
+
 		int returnReg = 0;
-		if (!f.isProcedure) {
-			returnReg = getNextReg();
-			bufList.add(DLX.assemble(POP, returnReg, SP, 4));
-		}
+
 		if (f.numVars > 0)
 		{
 			// move the stack pointer up by however many local variables you have
 			bufList.add(DLX.assemble(ADDI, SP, SP, 4 * f.numVars));;
 		}
-		// set the frame pointer 
-		bufList.add(DLX.assemble(POP, FP, SP, 4));
-		// set the return address 
-		bufList.add(DLX.assemble(POP, BA, SP, 4));
 		// set the stack pointer back based on parameters
 		bufList.add(DLX.assemble(ADDI, SP, SP, 4 * (f.numParams)));
+		bufList.add(DLX.assemble(POP, SP, FP, 4));
+
+		// set the return address 
+		bufList.add(DLX.assemble(POP, BA, SP, 0));
+
+		// set the frame pointer 
+		bufList.add(DLX.assemble(ADDI, SP, SP, 4 * f.numParams));
 
 		// POP the saved registers.
 		PopSavedRegisters(usedRegisters);
+		// copy the value of 27 to a new register.
+		if (!f.isProcedure) {
+			returnReg = getNextReg();
+			bufList.add(DLX.assemble(ADD, returnReg, 27, 0));
+		}
+		//bufList.add(DLX.assemble(RET, 31));
+
+		// return that new register
 		return returnReg;
 	}
 
 	private ArrayList<Integer> PushUsedRegisters() {
 		ArrayList<Integer> myRegs = new ArrayList<Integer>();
-		for (int i = 1; i < 28; i++)
+		for (int i = 0; i < 28; i++)
 		{
 			if (R[i] == 1)
 			{
@@ -532,12 +538,9 @@ public class Compiler
 	private void PopSavedRegisters(ArrayList<Integer> used) {
 		for (int i = 0; i < used.size(); i++){
 			if(used.get(i) == null) continue;
-			// POP it into the next free register
+			// POP it into the register.
 			bufList.add(DLX.assemble(POP, used.get(i), 29, 4));			
-			// Remote it from the list (maybe not needed)
-			used.remove(i);
-			// free it maybe?
-			//freeRegister(a);
+			R[used.get(i)] = 1;
 		}
 	}
 
@@ -545,12 +548,13 @@ public class Compiler
 	{
 		scanner.Next();
 		int myExp = exp();
-
-		bufList.add(DLX.assemble(PSH, myExp, SP, -4));
+		//bufList.add(DLX.assemble(ADDI, FP, SP, 8)); // as we're going up the mem stack to recurse, the sp and fp get moved. 
+		bufList.add(DLX.assemble(ADD, 27, myExp, 0));
+		freeRegister(myExp);
 
 		bufList.add(DLX.assemble(RET, 31));
 
-		return myExp;
+		return 27;
 	}
 
 	public retRelation relation()
@@ -660,18 +664,17 @@ public class Compiler
 			Result r = varMap.get(scanner.Id2String(scanner.id));
 			ret = getNextReg();
 			// LDW the value in memory to the register.
-			//Function f = functionMap.get(r.functionName);
 			if (r.isGlobal)
 			{
 				pushToBuffer(DLX.assemble(LDW, ret, 30, r.address));
 			}
 			else if (r.isParam) // go up 
 			{
-				pushToBuffer(DLX.assemble(LDW, ret, FP, (r.localOffset + 2) * (4)));
+				pushToBuffer(DLX.assemble(LDW, ret, FP, (r.parameterNumber + 2) * (4)));
 			}
 			else // is a local var
 			{
-				pushToBuffer(DLX.assemble(LDW, ret, FP, -8 + (r.localOffset) * (-4)));
+				pushToBuffer(DLX.assemble(LDW, ret, FP,(r.parameterNumber + 1) * (-4)));
 			}
 
 			scanner.Next();
@@ -688,8 +691,6 @@ public class Compiler
 		else if (scanner.sym == scanner.expressionMap.get("call"))
 		{
 			ret = funcCall();
-			if (ret != 0 || (ret != 27)) freeRegister( ret );
-			if (ret == 0) return mostRecentlyUsedReg;
 		}
 		else
 		{
@@ -727,8 +728,9 @@ public class Compiler
 		}
 		if (functionMap.get(myIdent) != null)
 		{
-			int a = functionPrologue();	
-			return a;
+			int returnReg = functionPrologue();	
+			//freeRegister(returnReg);
+			return returnReg;
 		}
 		return 0;
 	}
@@ -747,7 +749,7 @@ class Result {
 	String functionName;
 	Boolean isParam;
 	Boolean isGlobal;
-	int localOffset;
+	int parameterNumber;
 
 	Result(String _name, int reg, int mem) {
 		regno = reg;

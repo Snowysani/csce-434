@@ -349,7 +349,7 @@ public class DLX {
 	}
 
 	private static int PrintMemory(int t) {
-		int n = 40;
+		int n = 20;
 		int top = t;
 		int bottom = top - n;
 		if (R[28]/4 > top || R[29]/4 > top) {
