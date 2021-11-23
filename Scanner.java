@@ -82,7 +82,9 @@ public class Scanner {
             && contents.charAt(contentsPointer) != '-'
             && contents.charAt(contentsPointer) != '/'
             && contents.charAt(contentsPointer) != '*'
-            && contents.charAt(contentsPointer) != ')')
+            && contents.charAt(contentsPointer) != ')'
+            && contents.charAt(contentsPointer) != '['
+            && contents.charAt(contentsPointer) != ']')
         {
             if (contents.charAt(contentsPointer) != ' ' )
                 tempId += contents.charAt(contentsPointer);
@@ -214,7 +216,7 @@ public class Scanner {
                             this.sym = 23;
                             contentsPointer++;
                         }
-                        if (this.sym == 110)
+                        if (this.sym == 110 || this.sym == 111)
                         {
                             // It's a var. We need to treat the rest of the line as identifiers.
                             idFlag = true;
@@ -266,7 +268,8 @@ public class Scanner {
                                 || contents.charAt(contentsPointer + 1) == ')'
                                 || contents.charAt(contentsPointer + 1) == '\n'
                                 || contents.charAt(contentsPointer + 1) == ','
-                                || contents.charAt(contentsPointer + 1) == '(')
+                                || contents.charAt(contentsPointer + 1) == '('
+                                || contents.charAt(contentsPointer + 1) == '[')
                             ) 
                             ||
                             (!tempToken.isEmpty() && (contentsPointer + 1 >= contents.length()))

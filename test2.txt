@@ -1,19 +1,17 @@
 main
-var csum;
-
-function cumulativesum()
-var input, sum;
-{	
-	let input <- call inputnum();
-	if input == 0 then
-		return 0;
-	else
-        let sum <- call cumulativesum();
-		return input + sum;
-	fi;
-};
-
+var i, j, k;
+array[ 10 ] a;
 {
-	let csum <- call cumulativesum();
-	call outputnum(csum);
+        let i <- 0;
+        while i < 10 do
+                let a[i] <- i+10;
+                let i <- i+1;
+        od;
+        
+        while i > 0 do
+                let i <- i-1;
+                call outputnum(a[i]);
+                
+        od;
+        call outputnewline();
 }.

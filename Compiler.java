@@ -25,6 +25,7 @@ public class Compiler
 	int SP = 29;
 
 	java.util.Map< String, Result > varMap;
+
 	java.util.Map< String, Function > functionMap;
 
 	// Constructor of your Compiler
@@ -61,10 +62,15 @@ public class Compiler
 			// check for varDec
 			scanner.Next();
 			token = scanner.sym;
-			if (token == scanner.expressionMap.get("var"))
+			while (token == scanner.expressionMap.get("var") || token == scanner.expressionMap.get("array"))
 			{
 				// then its a var. 
-				varDec();
+				if (token == scanner.expressionMap.get("var")) 
+					varDec();
+				else if (token == scanner.expressionMap.get("array")) 
+					arrayDec();
+				token = scanner.sym;
+
 			}
 		}
 
@@ -144,7 +150,8 @@ public class Compiler
 	
 	public void varDec() 
 	{
-		scanner.Next();
+
+		//scanner.Next();
 		token = scanner.sym;
 		while (token != 70)
 		{
@@ -154,6 +161,51 @@ public class Compiler
 				Result r = new Result(name, -1, getNextMemLocation());
 				r.isGlobal = true;
 				numofGlobalVars++;
+				varMap.put(name, r);
+			}
+			else if (token == 31) // if its a comma, continue
+			{
+				scanner.Next();
+				token = scanner.sym;
+				continue;
+			}
+			scanner.Next();
+			token = scanner.sym;
+		}
+		scanner.Next();
+	}
+
+	public void arrayDec() 
+	{
+		scanner.Next();
+		token = scanner.sym; // open bracket. 
+		while (token != 70)
+		{
+			if (token == scanner.expressionMap.get("["))
+			{
+				ArrayList<Integer> dims = new ArrayList<Integer>();
+				scanner.Next();
+				int val = scanner.val;
+				dims.add(val);
+				// close the bracket. 
+				scanner.Next();
+				// now get the name. 
+				scanner.Next();
+				String name = scanner.Id2String(scanner.id);
+
+				Result r = new Result(name, -1, getNextMemLocation());
+				// allocate the memory for that size array
+				for (int i = 0; i < dims.size(); i++)
+				{
+					for (int j = 0; j < dims.get(i); j++)
+					{
+						int next = getNextMemLocation();
+						numofGlobalVars++;
+					}
+				}
+				r.isGlobal = true;
+				r.isArray = true;
+				r.dimensions = dims;
 				varMap.put(name, r);
 			}
 			else if (token == 31) // if its a comma, continue
@@ -240,7 +292,56 @@ public class Compiler
 			error();
 		}
 		String myIdent = scanner.Id2String(scanner.id);
-		scanner.Next();
+		if (varMap.containsKey(myIdent))
+		{
+			Result r = varMap.get(myIdent);
+			int arrayIndexReg = -1;
+			if (r.isArray)
+			{
+				scanner.Next(); // now we are at the "["
+				scanner.Next();
+				int getExpression = exp();
+				//int ret = getNextReg();
+				//pushToBuffer(DLX.assemble(ADDI, ret, getExpression, -r.address));
+				//pushToBuffer(DLX.assemble(STW, getExpression, ));
+				//arrayIndexReg = getExpression; // now this holds the memory location we need to get to. 
+				// skip the ]
+				arrayIndexReg = getExpression;
+				//scanner.Next();
+			}
+
+			scanner.Next(); // skip the <- 
+			scanner.Next();
+			int expReg = exp();
+
+			if (r.isArray)
+			{
+				// get a handle on the memory location we want to go to.
+				pushToBuffer(DLX.assemble(MULI, arrayIndexReg, arrayIndexReg, -4));
+				pushToBuffer(DLX.assemble(ADDI, arrayIndexReg, arrayIndexReg, r.address));
+				pushToBuffer(DLX.assemble(STX, expReg, 30, arrayIndexReg));
+				freeRegister(arrayIndexReg);
+			}
+			else if (r.isGlobal && !r.isArray)
+			{
+				pushToBuffer(DLX.assemble(STW, expReg, 30, r.address));
+			}
+			else if (r.isParam)
+			{
+				// Since it's a parameter, we have to go up the stack via the frame pointer. 
+				pushToBuffer(DLX.assemble(STW, expReg, FP, r.parameterNumber * ( 4)));
+			}
+			else // r is a local var
+			{
+				// Since it's local, it lives below the frame pointer. 
+				pushToBuffer(DLX.assemble(STW, expReg, FP, (r.parameterNumber + 1) * -4));
+			}
+			freeRegister(expReg);
+		}
+		else // its not in the var map
+		{
+			error();
+		}
 		
 		// if (!varMap.containsKey(myIdent))
 		// {
@@ -249,35 +350,6 @@ public class Compiler
 		// 	r.isGlobal = false;
 		// 	varMap.put(name, r);
 		// }
-
-		if (scanner.sym == scanner.expressionMap.get("<-"))
-		{
-			scanner.Next();
-			if (varMap.containsKey(myIdent))
-			{
-				int expReg = exp();
-				Result r = varMap.get(myIdent);
-				if (r.isGlobal)
-				{
-					pushToBuffer(DLX.assemble(STW, expReg, 30, r.address));
-				}
-				else if (r.isParam)
-				{
-					// Since it's a parameter, we have to go up the stack via the frame pointer. 
-					pushToBuffer(DLX.assemble(STW, expReg, FP, r.parameterNumber * ( 4)));
-				}
-				else // r is a local var
-				{
-					// Since it's local, it lives below the frame pointer. 
-					pushToBuffer(DLX.assemble(STW, expReg, FP, (r.parameterNumber + 1) * -4));
-				}
-				freeRegister(expReg);
-			}
-			else // its not in the var map
-			{
-				error();
-			}
-		}
 	}
 
 	public int ifStatement()
@@ -490,6 +562,7 @@ public class Compiler
 		int returnReg = 0;
 		// POP the saved registers.
 		PopSavedRegisters(usedRegisters);
+
 		if (f.numVars > 0)
 		{
 			// move the stack pointer up by however many local variables you have
@@ -510,6 +583,8 @@ public class Compiler
 
 		// set the frame pointer 
 		bufList.add(DLX.assemble(ADDI, SP, SP, 4 * f.numParams));
+
+
 
 		//bufList.add(DLX.assemble(RET, 31));
 
@@ -658,11 +733,26 @@ public class Compiler
 				// Result r = new Result(name, -1, -1);
 				// varMap.put(name, r);
 			}
-		
-			Result r = varMap.get(scanner.Id2String(scanner.id));
+			String name = scanner.Id2String(scanner.id);
+			Result r = varMap.get(name);
 			ret = getNextReg();
+
+			if (r.isArray)
+			{
+				// get the value we want
+				// maybe get this in a helper function
+				scanner.Next();
+				// skip the [
+				scanner.Next();
+				int indexNum = exp();
+				pushToBuffer(DLX.assemble(MULI, indexNum, indexNum, -4));
+				pushToBuffer(DLX.assemble(ADDI, indexNum, indexNum, r.address));
+				pushToBuffer(DLX.assemble(LDX, ret, 30, indexNum));
+				freeRegister(indexNum);
+				// scanner.next(); // needed?
+			}
 			// LDW the value in memory to the register.
-			if (r.isGlobal)
+			else if (r.isGlobal && !r.isArray)
 			{
 				pushToBuffer(DLX.assemble(LDW, ret, 30, r.address));
 			}
@@ -746,6 +836,8 @@ class Result {
 	String functionName;
 	Boolean isParam;
 	Boolean isGlobal;
+	Boolean isArray;
+	ArrayList<Integer> dimensions;
 	int parameterNumber;
 
 	Result(String _name, int reg, int mem) {
@@ -753,16 +845,18 @@ class Result {
 		address = mem;
 		name = _name;
 		functionName = "main";
+		isArray = false;
 	}
 	Result(String _name, int reg, int mem, String _functionName) {
 		regno = reg;
 		address = mem;
 		name = _name;
 		functionName = _functionName;
+		isArray = false;
 	}
 
 	Result() {
-		regno = 0; address = 0; name = ""; functionName = "";
+		regno = 0; address = 0; name = ""; functionName = ""; isArray = false;
 	}
 }
 
