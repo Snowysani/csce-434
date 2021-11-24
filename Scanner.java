@@ -269,7 +269,8 @@ public class Scanner {
                                 || contents.charAt(contentsPointer + 1) == '\n'
                                 || contents.charAt(contentsPointer + 1) == ','
                                 || contents.charAt(contentsPointer + 1) == '('
-                                || contents.charAt(contentsPointer + 1) == '[')
+                                || contents.charAt(contentsPointer + 1) == '['
+                                || contents.charAt(contentsPointer + 1) == ']')
                             ) 
                             ||
                             (!tempToken.isEmpty() && (contentsPointer + 1 >= contents.length()))

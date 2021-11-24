@@ -179,18 +179,30 @@ public class Compiler
 	{
 		scanner.Next();
 		token = scanner.sym; // open bracket. 
-		while (token != 70)
+		ArrayList<Integer> dims = new ArrayList<Integer>();
+		int val = 0;
+		while (scanner.sym != 70)
 		{
-			if (token == scanner.expressionMap.get("["))
+			if (scanner.sym == scanner.expressionMap.get("["))
 			{
-				ArrayList<Integer> dims = new ArrayList<Integer>();
-				scanner.Next();
-				int val = scanner.val;
+				scanner.Next(); // get to the value 
+				val = scanner.val;
 				dims.add(val);
-				// close the bracket. 
+				// get to the end bracket
 				scanner.Next();
+				// get the first identifier. 
+				scanner.Next();
+			}
+			else if (scanner.sym == 31) // if its a comma, continue
+			{
+				scanner.Next();
+				token = scanner.sym;
+				continue;
+			}
+			else if (scanner.sym == 61) // then its another identifier.
+			{
 				// now get the name. 
-				scanner.Next();
+				//scanner.Next();
 				String name = scanner.Id2String(scanner.id);
 
 				Result r = new Result(name, -1, getNextMemLocation());
@@ -207,16 +219,14 @@ public class Compiler
 				r.isArray = true;
 				r.dimensions = dims;
 				varMap.put(name, r);
-			}
-			else if (token == 31) // if its a comma, continue
-			{
+				token = scanner.sym;
 				scanner.Next();
 				token = scanner.sym;
 				continue;
 			}
-			scanner.Next();
-			token = scanner.sym;
+
 		}
+		scanner.Next();
 	}
 
 	public int statSequence()
@@ -296,10 +306,11 @@ public class Compiler
 		{
 			Result r = varMap.get(myIdent);
 			int arrayIndexReg = -1;
+			scanner.Next();
 			if (r.isArray)
 			{
 				scanner.Next(); // now we are at the "["
-				scanner.Next();
+				// skip the "["
 				int getExpression = exp();
 				//int ret = getNextReg();
 				//pushToBuffer(DLX.assemble(ADDI, ret, getExpression, -r.address));
@@ -307,11 +318,11 @@ public class Compiler
 				//arrayIndexReg = getExpression; // now this holds the memory location we need to get to. 
 				// skip the ]
 				arrayIndexReg = getExpression;
-				//scanner.Next();
+				scanner.Next(); // skip the "]"
 			}
 
 			scanner.Next(); // skip the <- 
-			scanner.Next();
+			//scanner.Next();
 			int expReg = exp();
 
 			if (r.isArray)
@@ -531,29 +542,32 @@ public class Compiler
 
 		// load the current formal input params to their respective mems. 
 		// populate those
-		scanner.Next(); 
-		int i = f.numParams;
-		//
-		//if (i > 0) bufList.add(DLX.assemble(ADDI, SP, SP, 4));
-		while (scanner.sym != scanner.expressionMap.get(")"))
+		if (scanner.sym != scanner.expressionMap.get(";"))
 		{
-			if (scanner.sym == scanner.expressionMap.get(","))
+			scanner.Next(); 
+			int i = f.numParams;
+			//
+			//if (i > 0) bufList.add(DLX.assemble(ADDI, SP, SP, 4));
+			while (scanner.sym != scanner.expressionMap.get(")"))
 			{
-				scanner.Next();
-				continue;
+				if (scanner.sym == scanner.expressionMap.get(","))
+				{
+					scanner.Next();
+					continue;
+				}
+				int myExp = exp();
+				// PSH that result in the formal params location.
+				bufList.add(DLX.assemble(PSH, myExp, SP, -4));
+				//bufList.add(DLX.assemble(ADDI, SP, SP, -4));
+				i--;
+				freeRegister(myExp);
 			}
-			int myExp = exp();
-			// PSH that result in the formal params location.
-			bufList.add(DLX.assemble(PSH, myExp, SP, -4));
+			// Move the SP down that number of params.
 			//bufList.add(DLX.assemble(ADDI, SP, SP, -4));
-			i--;
-			freeRegister(myExp);
+			// okay. now we're at )
 		}
-		// Move the SP down that number of params.
-		//bufList.add(DLX.assemble(ADDI, SP, SP, -4));
-		// okay. now we're at )
 		scanner.Next();
-		
+
 		// Branch to that function
 		bufList.add(DLX.assemble(JSR, (f.startInstruction + 1) * 4));
 
@@ -583,8 +597,6 @@ public class Compiler
 
 		// set the frame pointer 
 		bufList.add(DLX.assemble(ADDI, SP, SP, 4 * f.numParams));
-
-
 
 		//bufList.add(DLX.assemble(RET, 31));
 

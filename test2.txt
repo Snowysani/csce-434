@@ -1,17 +1,49 @@
 main
-var i, j, k;
 array[ 10 ] a;
+array[ 10 ] b;
+var size;
+var i;
+
+procedure output(isa)
+var i;
+{        
+        let i <- 0;
+        if isa == 0 then
+                while i < size do
+                        call outputnum(a[i]);
+                        let i <- i + 1;
+                od;
+        else 
+                while i < size do
+                        call outputnum(b[i]);
+                        let i <- i + 1;
+                od;
+        fi;
+        call outputnewline();
+};
+
+procedure swap()
+var i,k;
+array [10] c;
+{
+        let c <- a;
+	let a <- b;
+	let b <- c;
+};
+
 {
         let i <- 0;
-        while i < 10 do
-                let a[i] <- i+10;
+        let size <- 10;
+        while i < size do
+                let a[i] <- i + size;
+                let b[i] <- 5*i+1;
                 let i <- i+1;
         od;
         
-        while i > 0 do
-                let i <- i-1;
-                call outputnum(a[i]);
-                
-        od;
+        call output(0); //array a
+        call output(1); //array b
         call outputnewline();
+        call swap();
+        call output(0); //array a
+        call output(1); //array b
 }.
